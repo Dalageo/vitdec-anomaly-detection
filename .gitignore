@@ -9,6 +9,6 @@ env/
 # Folders
 __pycache__/
 checkpoints/
-model_weigths/
+model_weights/
 dataset/
 Images/

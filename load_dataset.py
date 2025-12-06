@@ -1,7 +1,6 @@
 
 import os
 import torch
-import argparse
 import numpy as np
 from PIL import Image
 from collections import Counter
@@ -14,15 +13,14 @@ from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRando
 # --------------------
 # Custom Dataset Class
 # --------------------
-class CustomDataset(Dataset):
-    def __init__(self, data_path, is_train=True, transforms_dict=None, data_info=False):
-        super(CustomDataset, self).__init__()
+class LoadDataset(Dataset):
+    def __init__(self, data_path: str, is_train: bool, data_info: bool, transforms_dict=None):
+        super().__init__()
         self.data_path = data_path
         self.is_train = is_train
         self.transforms_dict = transforms_dict
-        self.data_info = data_info  
+        self.data_info = data_info
 
-        # Sets the phase based on whether it is training or not (Train or Test)
         self.phase = 'train' if is_train else 'test'
         self.x, self.y, self.category = self.load_dataset_folder()
 
@@ -39,10 +37,10 @@ class CustomDataset(Dataset):
         if category in self.transforms_dict:
             x = self.transforms_dict[category](x)
             
-        # Debug: Print pixel value range after transformation
-        if self.data_info:
-            x_tensor = torch.tensor(np.array(x)) / 255.0  # Assuming x is an image after ToTensor (0-1 range)
-            print(f"Transformed pixel range for {x_path}: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
+            # Debug: Print pixel value range after transformation
+            if self.data_info:
+                x_tensor = torch.tensor(np.array(x)) / 255.0  # Assuming x is an image after ToTensor (0-1 range)
+                print(f"Transformed pixel range for {x_path}: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
 
         return x, y, category
 
