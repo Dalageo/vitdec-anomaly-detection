@@ -1,0 +1,14 @@
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Local Environment variables (secrets/keys)
+.env
+
+# Folders
+__pycache__/
+checkpoints/
+model_weigths/
+dataset/
+Images/
