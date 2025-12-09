@@ -8,12 +8,13 @@ import matplotlib.pyplot as plt
 from torchvision import transforms as T, utils
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
+from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
 
 
 # --------------------
 # Custom Dataset Class
 # --------------------
-class LoadDataset(Dataset):
+class MVTecDataset(Dataset):
     def __init__(self, data_path: str, is_train: bool, data_info: bool, transforms_dict: dict):
         super().__init__()
         self.data_path = data_path
@@ -22,7 +23,7 @@ class LoadDataset(Dataset):
         self.transforms_dict = transforms_dict
         
         self.phase = 'train' if self.is_train else 'test'
-        self.x, self.y, self.category = self.load_dataset_folder()
+        self.x, self.y, self.category = self.load_dataset()
 
     def __getitem__(self, idx):
         x_path, y, category = self.x[idx], self.y[idx], self.category[idx]
@@ -39,7 +40,7 @@ class LoadDataset(Dataset):
             
         # Print pixel value range after transformation
         if self.data_info:
-                x_tensor = torch.tensor(np.array(x)) / 255.0  # Assuming x is an image after ToTensor (0-1 range)
+                x_tensor = torch.tensor(np.array(x)) / 255.0 
                 print(f"Transformed pixel range for {x_path}: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
 
         return x, y, category
@@ -47,8 +48,7 @@ class LoadDataset(Dataset):
     def __len__(self):
         return len(self.x)
 
-    def load_dataset_folder(self):
-        
+    def load_dataset(self):
         x, y, category = [], [], []
         img_dir = os.path.join(self.data_path, self.phase)
 
@@ -91,142 +91,122 @@ class LoadDataset(Dataset):
         return x, y, category
     
 
-IMG_RES = 384
-MEAN = [0.5, 0.5, 0.5]
-STD = [0.5, 0.5, 0.5]
-
-augmentation_dict = {  
-        "basic_transforms": [
-                    # Resizing using LANCZOS filter for high-quality downsampling
-                    T.Resize((IMG_RES, IMG_RES), Image.LANCZOS),
-                    T.ToTensor(),
-                    T.Normalize(MEAN, STD)
-                ],
-        
-        "train_transforms": { 
-            "supervised": { 
-                "augmentation": True,
-                "augmentation_transforms": [
-                    T.Resize((IMG_RES, IMG_RES), Image.LANCZOS),
-                    # T.RandomApply([T.ColorJitter(brightness=(1.1, 1.3))], p=0.5),
-                    T.RandomHorizontalFlip(p=0.5),
-                    # T.RandomVerticalFlip(p=0.5),
-                    T.ToTensor(),
-                    ],
-            },
-            "unsupervised": { 
-                "augmentation": True,
-                "augmentation_transforms": [
-                    T.Resize((IMG_RES, IMG_RES), Image.LANCZOS),
-                    # T.RandomApply([T.ColorJitter(brightness=(1.1, 1.3))], p=0.5),
-                    T.RandomHorizontalFlip(p=0.5),
-                    # T.RandomVerticalFlip(p=0.5),
-                    T.ToTensor(),
-                    ],
-            },
-        }
-    }
-        
-        
 # ---------------------------
 # Load and Transform the Data
 # ---------------------------
-class TransformDataset():
-    def __init__(self, data_path: str, augmentation_dict: dict):
-        self.data_path = data_path
-        self.augmentation_dict = augmentation_dict
+class MVTecDataModule:
+    def __init__(self):
+        self.data_path = DATASET_PATH
+        self.augmentation_dict = AUGMENTATION_CONFIG
         
-    def get_dataloader(self, is_train: bool): 
+        self.test_ratio = TEST_RATIO
+        self.val_ratio = VAL_RATIO
+        self.batch_size = BATCH_SIZE
+        self.seed = SEED
         
-        basic_transforms_list = self.augmentation_dict.get("basic_transforms")
-        basic_transforms = T.Compose(basic_transforms_list)
+        # Placeholders for datasets and indices
+        self.train_dataset = None
+        self.bound_dataset = None
+        self.train_idx = None
+        self.val_idx = None
+        self.bound_idx = None
+        self.test_idx = None
         
-        if is_train:
-            train_transforms = self.augmentation_dict.get("train_transforms")
-            
-            # --- Supervised Transforms (Normal/Anomaly) ---
-            supervised_config = train_transforms.get("supervised")
-            if supervised_config.get("augmentation"):
-                transform_supervised_list = supervised_config.get("augmentation_transforms")
-            else:
-                transform_supervised_list = basic_transforms_list
-            transform_supervised = T.Compose(transform_supervised_list)
-                
-            # --- Unsupervised Transforms (Base) ---
-            unsupervised_config = train_transforms.get("unsupervised")
-            if unsupervised_config.get("augmentation"):
-                transform_unsupervised_list = unsupervised_config.get("augmentation_transforms")
-            else:
-                transform_unsupervised_list = basic_transforms_list
-            transform_unsupervised = T.Compose(transform_unsupervised_list)
+        # Prepare transforms & load/split data immediately
+        self._prepare_transforms()
+        self._setup_data()
+
+    def _prepare_transforms(self):
+        """Internal helper to setup transform dictionaries."""
+        basic_transforms = self.augmentation_dict.get("basic_transforms")
         
+        # Train Transforms
+        train_cfg = self.augmentation_dict.get("train_transforms")
         
-        # For anomaly, just transform + ToTensor + Normalize (no augmentation)
+        # Supervised
+        supervised_cfg = train_cfg.get("supervised")
+        supervised_list = supervised_cfg.get("augmentation_transforms") if supervised_cfg.get("augmentation") else basic_transforms
+        transform_supervised = T.Compose(supervised_list)
+        
+        # Unsupervised
+        unsupervised_cfg = train_cfg.get("unsupervised")
+        unsupervised_list = unsupervised_cfg.get("augmentation_transforms") if unsupervised_cfg.get("augmentation") else basic_transforms
+        transform_unsupervised = T.Compose(unsupervised_list)
+        
+        # Anomaly (No augmentation)
         transform_supervised_anomaly = T.Compose(basic_transforms)
 
-        # Category dicts for transformation
-        train_transform_dict = {
+        self.train_transforms = {
             'base': transform_unsupervised,
             'normal': transform_supervised,
             'anomaly': transform_supervised_anomaly,
         }
+        self.test_transforms = {'test': transform_unsupervised}
+
+
+    def _setup_data(self, ):
+        """Loads datasets once and calculates all split indices once."""
+        print("Loading datasets and calculating splits...")
         
-        test_transform_dict = {
-            'test': transform_unsupervised
-        }
+        # Load Datasets
+        self.train_dataset = MVTecDataset(self.data_path, is_train=True, transforms_dict=self.train_transforms, data_info=None)
+        self.bound_dataset = MVTecDataset(self.data_path, is_train=False, transforms_dict=self.test_transforms, data_info=None)
 
-        # Initialize datasets with transformation
-        train_dataset = LoadDataset(self.data_path, is_train=True, transforms_dict=train_transform_dict, data_info=None)
-        # Here I set the unsupervised transformation dict since its for testing
-        bound_dataset = LoadDataset(self.data_path, is_train=False, transforms_dict=test_transform_dict, data_info=None)
+        # Calculate Train/Val Splits
+        normal_indices = [i for i, (_, y, _) in enumerate(self.train_dataset) if y == 0]
+        base_indices = [i for i, (_, y, _) in enumerate(self.train_dataset) if y == -1]
+        anomaly_indices = [i for i, (_, y, _) in enumerate(self.train_dataset) if y == 1]
 
-        # Collect indices for normal, base, and anomaly data
-        indices_good = [i for i, (_, y, _) in enumerate(train_dataset) if y == 0]
-        indices_unsupervised = [i for i, (_, y, _) in enumerate(train_dataset) if y == -1]
-        indices_anomaly = [i for i, (_, y, _) in enumerate(train_dataset) if y == 1]  
+        # Normal Split
+        np.random.shuffle(normal_indices)
+        norm_split = int(self.val_ratio * len(normal_indices))
+        val_norm_idx = normal_indices[:norm_split]
+        train_norm_idx = normal_indices[norm_split:]
 
-        # Prepare Stratified splits for 'normal' and 'base' data only for validation
-        sss_good = StratifiedShuffleSplit(n_splits=1, test_size=args.val_ratio, random_state=args.seed)
-        train_idx_good, val_idx_good = next(sss_good.split(np.zeros(len(indices_good)), np.zeros(len(indices_good))))  
+        # Base Split
+        np.random.shuffle(base_indices)
+        base_split = int(self.val_ratio * len(base_indices))
+        val_base_idx = base_indices[:base_split]
+        train_base_idx = base_indices[base_split:]
 
-        np.random.shuffle(indices_unsupervised)
-        split_point_unsupervised = int(args.val_ratio * len(indices_unsupervised))
-        val_idx_unsupervised = indices_unsupervised[:split_point_unsupervised]
-        train_idx_unsupervised = indices_unsupervised[split_point_unsupervised:]
+        # Combine
+        self.train_idx = train_norm_idx + train_base_idx + anomaly_indices
+        self.val_idx = val_norm_idx + val_base_idx
+        
+        # Shuffle final lists
+        np.random.shuffle(self.train_idx)
+        np.random.shuffle(self.val_idx)
 
-        # Anomalies are included only in the training dataset and not to validation one
-        train_idx_anomaly = indices_anomaly  
+        # Calculate Bound/Test Splits
+        labels_bound = [y for _, y, _ in self.bound_dataset]
+        sss_test = StratifiedShuffleSplit(n_splits=1, test_size=self.test_ratio, random_state=self.seed)
+        self.bound_idx, self.test_idx = next(sss_test.split(np.zeros(len(labels_bound)), labels_bound))
 
-        # Combine indices for training and validation, exclude anomalies from validation
-        train_idx = [indices_good[i] for i in train_idx_good] + train_idx_unsupervised + train_idx_anomaly
-        val_idx = [indices_good[i] for i in val_idx_good] + val_idx_unsupervised
-
-        # Shuffle the combined training and validation indices to mix the data
-        np.random.shuffle(train_idx)
-        np.random.shuffle(val_idx)
-
-        # Create dataloaders
-        train_loader = TorchDataLoader(train_dataset, batch_size=args.batch_size, sampler=SubsetRandomSampler(train_idx))
-        val_loader = TorchDataLoader(train_dataset, batch_size=args.batch_size, sampler=SubsetRandomSampler(val_idx))
-
-        # Setup for bound_loader and test_loader and stratify them for a balance representation
-        labels_bound = [y for _, y, _ in bound_dataset]
-        sss_test = StratifiedShuffleSplit(n_splits=1, test_size=args.test_ratio, random_state=args.seed)
-        bound_idx, test_idx = next(sss_test.split(np.zeros(len(labels_bound)), labels_bound))
-
-        bound_loader = TorchDataLoader(bound_dataset, batch_size=args.batch_size, sampler=SubsetRandomSampler(bound_idx))
-        test_loader = TorchDataLoader(bound_dataset, batch_size=args.batch_size, sampler=SubsetRandomSampler(test_idx))
-
-        if args.data_info:
+        if self.data_info:
             print("\n---------- Dataset Distribution ----------")
-            print("Number of training images:", len(train_idx))
-            print("Number of validation images:", len(val_idx))
-            print("Number of bound images:", len(bound_idx))
-            print("Number of testing images:", len(test_idx))
+            print("Number of training images:", len(self.train_idx))
+            print("Number of validation images:", len(self.val_idx))
+            print("Number of bound images:", len(self.bound_idx))
+            print("Number of testing images:", len(self.test_idx))
+            
+    # Dataloaders
+    @property
+    def train_dataloader(self):
+        return TorchDataLoader(self.train_dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(self.train_idx))
 
-        return train_loader, val_loader, bound_loader, test_loader
+    @property
+    def val_dataloader(self):
+        return TorchDataLoader(self.train_dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(self.val_idx))
 
+    @property
+    def bound_dataloader(self):
+        return TorchDataLoader(self.bound_dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(self.bound_idx))
 
+    @property
+    def test_dataloader(self):
+        return TorchDataLoader(self.bound_dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(self.test_idx))
+    
+    
 # ---------------------
 # Visualize Image Class
 # ---------------------
@@ -244,9 +224,9 @@ class VisualizeImages:
     # Display an image on a given axes.
     def imshow(self, img, ax):
         img = self.denormalize(img)  # Denormalize the image
-        img = img.clamp(0, 1)  # Ensure the values are in the range [0, 1]
-        img = img.permute(1, 2, 0)  # Convert from CxHxW to HxWxC
-        ax.imshow(img.numpy())  # Convert to numpy for imshow
+        img = img.clamp(0, 1)        # Ensure the values are in the range [0, 1]
+        img = img.permute(1, 2, 0)   # Convert from CxHxW to HxWxC
+        ax.imshow(img.numpy())       # Convert to numpy for imshow
         ax.axis('off')
 
     # Displays images from the data loader.
@@ -269,10 +249,9 @@ class VisualizeImages:
             
             # Show the grid without denormalizing again
             ax = plt.gca()
-            grid_img = grid_img.clamp(0, 1)  # Ensure the grid image is within [0, 1]
-            grid_img = grid_img.permute(1, 2, 0)  # Convert to HxWxC for matplotlib
-            ax.imshow(grid_img.numpy())  # Display using matplotlib
-            ax.axis('off')  # Hide axis
+            grid_img = grid_img.clamp(0, 1)         # Ensure the grid image is within [0, 1]
+            grid_img = grid_img.permute(1, 2, 0)    # Convert to HxWxC for matplotlib
+            ax.imshow(grid_img.numpy())             # Display using matplotlib
+            ax.axis('off')  
             plt.tight_layout()  
             plt.show()
-    
