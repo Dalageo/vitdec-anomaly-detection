@@ -19,6 +19,7 @@ numpy = "^2.3.5"
 pillow = "^12.0.0"
 matplotlib = "^3.10.7"
 scikit-learn = "^1.7.2"
+ipykernel = "^7.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"] # Simplified requirement

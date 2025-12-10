@@ -1,8 +1,10 @@
 
 import os
+import glob
 import torch
 import numpy as np
 from PIL import Image
+from pathlib import Path
 from collections import Counter
 import matplotlib.pyplot as plt
 from torchvision import transforms as T, utils
@@ -15,33 +17,38 @@ from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO,
 # Custom Dataset Class
 # --------------------
 class MVTecDataset(Dataset):
-    def __init__(self, data_path: str, is_train: bool, data_info: bool, transforms_dict: dict):
+    def __init__(self, dataset_path: str, is_train: bool, data_info: bool, transforms_dict: dict):
         super().__init__()
-        self.data_path = data_path
+        self.dataset_path = dataset_path
         self.is_train = is_train
         self.data_info = data_info
         self.transforms_dict = transforms_dict
         
         self.phase = 'train' if self.is_train else 'test'
         self.x, self.y, self.category = self.load_dataset()
+        
+        self.data_info_counter = 1
 
     def __getitem__(self, idx):
         x_path, y, category = self.x[idx], self.y[idx], self.category[idx]
         x = Image.open(x_path).convert('RGB')
         
+        print_info = self.data_info and self.data_info_counter > 0
+        
         # Print initial pixel value range
-        if self.data_info:
+        if print_info:
             img_np = np.array(x)
-            print(f"Initial pixel range in {x_path}: min={img_np.min()}, max={img_np.max()}")
+            print(f"Pixel range of `{os.path.basename(x_path)}`: min={img_np.min()}, max={img_np.max()}")
 
         # Apply the specific transformation based on the category
         if category in self.transforms_dict:
             x = self.transforms_dict[category](x)
             
         # Print pixel value range after transformation
-        if self.data_info:
-                x_tensor = torch.tensor(np.array(x)) / 255.0 
-                print(f"Transformed pixel range for {x_path}: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
+        if print_info:
+            x_tensor = torch.tensor(np.array(x)) / 255.0 
+            print(f"Transformed pixel range for `{os.path.basename(x_path)}`: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
+            self.data_info_counter -= 1
 
         return x, y, category
 
@@ -50,13 +57,14 @@ class MVTecDataset(Dataset):
 
     def load_dataset(self):
         x, y, category = [], [], []
-        img_dir = os.path.join(self.data_path, self.phase)
+        img_dir = os.path.join(self.dataset_path, self.phase)
+        image_extensions = ('.png', '.jpg', '.jpeg')
 
         # Base/Normal images (class -1 --> unsupervised training)
         if self.is_train:
             base_img_path = os.path.join(img_dir, 'base')
             if os.path.isdir(base_img_path):
-                base_img_paths = [os.path.join(base_img_path, img) for img in os.listdir(base_img_path)]
+                base_img_paths = [os.path.join(base_img_path, img) for img in os.listdir(base_img_path) if img.lower().endswith(image_extensions)]
                 x.extend(base_img_paths)
                 # Assign label -1
                 y.extend([-1] * len(base_img_paths))
@@ -66,7 +74,7 @@ class MVTecDataset(Dataset):
         # Normal images (class 0 --> supervised training)
         normal_img_path = os.path.join(img_dir, 'normal')
         if os.path.isdir(normal_img_path):
-            normal_img_paths = [os.path.join(normal_img_path, img) for img in os.listdir(normal_img_path)]
+            normal_img_paths = [os.path.join(normal_img_path, img) for img in os.listdir(normal_img_path) if img.lower().endswith(image_extensions)]
             x.extend(normal_img_paths)
             # Assign label 0
             y.extend([0] * len(normal_img_paths))
@@ -75,16 +83,22 @@ class MVTecDataset(Dataset):
 
         # Anomaly images (class 1 --> supervised training)
         anomaly_img_path = os.path.join(img_dir, 'anomaly')
+        anomaly_img_paths = [] 
         if os.path.isdir(anomaly_img_path):
-            anomaly_img_paths = [os.path.join(anomaly_img_path, img) for img in os.listdir(anomaly_img_path)]
+            for ext in image_extensions:
+                search_pattern = os.path.join(anomaly_img_path, '**', ext)
+                anomaly_img_paths.extend(glob.glob(search_pattern, recursive=True))
+
+            num_anomaly_images = len(anomaly_img_paths)
             x.extend(anomaly_img_paths)
             # Assign label 1
-            y.extend([1] * len(anomaly_img_paths))
-            # Assign anomaly for category if its for training (because 'anomaly' folder is also used for testing) while if its for testing asign test to them
-            category.extend(['anomaly'] * len(anomaly_img_paths) if self.is_train else ['test'] * len(anomaly_img_paths))
+            y.extend([1] * num_anomaly_images)
+
+            actual_category = 'anomaly' if self.is_train else 'test'
+            category.extend([actual_category] * num_anomaly_images)
             
         if self.data_info:
-            print(f"Loaded {len(x)} images for {self.phase}.")
+            print(f"Loading {len(x)} images for {self.phase}.")
             print("Class distribution:", Counter(y))
             print("Categories:", Counter(category))
             
@@ -95,9 +109,10 @@ class MVTecDataset(Dataset):
 # Load and Transform the Data
 # ---------------------------
 class MVTecDataModule:
-    def __init__(self):
-        self.data_path = DATASET_PATH
+    def __init__(self, data_info: bool=False):
+        self.dataset_path = DATASET_PATH
         self.augmentation_dict = AUGMENTATION_CONFIG
+        self.data_info = data_info
         
         self.test_ratio = TEST_RATIO
         self.val_ratio = VAL_RATIO
@@ -149,8 +164,8 @@ class MVTecDataModule:
         print("Loading datasets and calculating splits...")
         
         # Load Datasets
-        self.train_dataset = MVTecDataset(self.data_path, is_train=True, transforms_dict=self.train_transforms, data_info=None)
-        self.bound_dataset = MVTecDataset(self.data_path, is_train=False, transforms_dict=self.test_transforms, data_info=None)
+        self.train_dataset = MVTecDataset(self.dataset_path, is_train=True, transforms_dict=self.train_transforms, data_info=self.data_info)
+        self.bound_dataset = MVTecDataset(self.dataset_path, is_train=False, transforms_dict=self.test_transforms, data_info=self.data_info)
 
         # Calculate Train/Val Splits
         normal_indices = [i for i, (_, y, _) in enumerate(self.train_dataset) if y == 0]
