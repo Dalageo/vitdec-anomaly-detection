@@ -12,3 +12,6 @@ checkpoints/
 model_weights/
 dataset/
 Images/
+
+# Notebooks
+*.ipynb
