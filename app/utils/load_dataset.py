@@ -270,3 +270,4 @@ class VisualizeImages:
             ax.axis('off')  
             plt.tight_layout()  
             plt.show()
+            
