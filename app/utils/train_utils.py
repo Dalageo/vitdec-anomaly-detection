@@ -6,7 +6,10 @@ from tqdm import tqdm
 import torch.nn as nn
 from app.utils.utils import LoggerConfig
 from app.utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
-from app.config import AMP, BETA_1, BETA_2, LR_VIT, LR_DEC, WD_VIT, WD_DEC, EPOCHS, DEVICE, BATCH_SIZE, MEAN, STD
+from app.config import AMP, BETA_1, BETA_2, \
+                       LR_VIT, LR_DEC, WD_VIT, WD_DEC, \
+                       EPOCHS, BATCH_SIZE, DEVICE, \
+                       MEAN, STD
 
 logger = LoggerConfig().get_logger(__name__)
 

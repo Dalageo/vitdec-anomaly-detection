@@ -4,14 +4,15 @@ import glob
 import torch
 import numpy as np
 from PIL import Image
-from pathlib import Path
 from collections import Counter
 import matplotlib.pyplot as plt
+from app.utils.utils import LoggerConfig
 from torchvision import transforms as T, utils
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
 from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
 
+logger = LoggerConfig().get_logger(__name__)
 
 # --------------------
 # Custom Dataset Class
@@ -38,7 +39,7 @@ class MVTecDataset(Dataset):
         # Print initial pixel value range
         if print_info:
             img_np = np.array(x)
-            print(f"Pixel range of `{os.path.basename(x_path)}`: min={img_np.min()}, max={img_np.max()}")
+            logger.info(f"Pixel range of `{os.path.basename(x_path)}`: min={img_np.min()}, max={img_np.max()}")
 
         # Apply the specific transformation based on the category
         if category in self.transforms_dict:
@@ -47,7 +48,7 @@ class MVTecDataset(Dataset):
         # Print pixel value range after transformation
         if print_info:
             x_tensor = torch.tensor(np.array(x)) / 255.0 
-            print(f"Transformed pixel range for `{os.path.basename(x_path)}`: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
+            logger.info(f"Transformed pixel range for `{os.path.basename(x_path)}`: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
             self.data_info_counter -= 1
 
         return x, y, category
@@ -98,9 +99,9 @@ class MVTecDataset(Dataset):
             category.extend([actual_category] * num_anomaly_images)
             
         if self.data_info:
-            print(f"Loading {len(x)} images for {self.phase}.")
-            print("Class distribution:", Counter(y))
-            print("Categories:", Counter(category))
+            logger.info(f"Loading {len(x)} images for {self.phase}.")
+            logger.info("Class distribution:", Counter(y))
+            logger.info("Categories:", Counter(category))
             
         return x, y, category
     
@@ -197,11 +198,11 @@ class MVTecDataModule:
         self.bound_idx, self.test_idx = next(sss_test.split(np.zeros(len(labels_bound)), labels_bound))
 
         if self.data_info:
-            print("\n---------- Dataset Distribution ----------")
-            print("Number of training images:", len(self.train_idx))
-            print("Number of validation images:", len(self.val_idx))
-            print("Number of bound images:", len(self.bound_idx))
-            print("Number of testing images:", len(self.test_idx))
+            logger.info("\n---------- Dataset Distribution ----------")
+            logger.info("Number of training images:", len(self.train_idx))
+            logger.info("Number of validation images:", len(self.val_idx))
+            logger.info("Number of bound images:", len(self.bound_idx))
+            logger.info("Number of testing images:", len(self.test_idx))
             
     # Dataloaders
     @property
@@ -248,8 +249,8 @@ class VisualizeImages:
         for i, (images, labels, categories) in enumerate(loader):
             if i >= img_batch_info:
                 break
-            print(f"Batch {i+1} labels:", labels)
-            print(f"Batch {i+1} categories:", categories)
+            logger.info(f"Batch {i+1} labels:", labels)
+            logger.info(f"Batch {i+1} categories:", categories)
 
             # Denormalize the images in the batch before passing to make_grid
             images = torch.stack([self.denormalize(img) for img in images])
