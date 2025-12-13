@@ -5,66 +5,71 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
-import matplotlib.pyplot as plt
-from utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
+from app.config import AMP
+from app.utils.utils import LoggerConfig
+from app.utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
 
+logger = LoggerConfig().get_logger(__name__)
 
 # --------------
 # Early Stopping 
 # --------------
 class EarlyStop:
-    def __init__(self, patience=5, verbose=True, delta=0, save_name="checkpoint.pt"):
+    def __init__(self, patience=5, delta=0):
         self.patience = patience
-        self.verbose = verbose
-        self.save_name = save_name
+        self.verbose = True
+        self.save_name = "checkpoint.pt"
         self.counter = 0
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
+        self.log = open(self.log_path, 'w')
 
-    def __call__(self, class_loss, recon_loss, model, optimizer_vit, optimizer_dec, log):
+    def __call__(self, class_loss, recon_loss, model):
         overall_loss = class_loss + recon_loss
         
-        if overall_loss < self.val_loss_min - self.delta:  # Check if the new loss is significantly better
+        # Check if the new loss is significantly better
+        if overall_loss < self.val_loss_min - self.delta:  
             if self.verbose:
-                print_log(f"Overall loss decreased ({self.val_loss_min:.6f} --> {overall_loss:.6f}). Saving model...", log)
-            self.save_checkpoint(overall_loss, model, log)
-            self.val_loss_min = overall_loss  # Update the minimum loss only here
+                logger.info(f"Overall loss decreased ({self.val_loss_min:.6f} --> {overall_loss:.6f}). Saving model...", self.log)
+            self.save_checkpoint(overall_loss, model)
+            self.val_loss_min = overall_loss 
             self.counter = 0
         else:
             self.counter += 1
-            print_log(f"EarlyStopping counter: {self.counter} out of {self.patience}", log)
+            logger.info(f"EarlyStopping counter: {self.counter} out of {self.patience}", self.log)
 
         if self.counter >= self.patience:
             self.early_stop = True
-            print_log("Early stopping triggered", log)
+            logger.warning("Early stopping triggered", self.log)
             return True
 
         return False
 
-    def save_checkpoint(self, val_loss, model, log):
+    def save_checkpoint(self, model):
         """ Saves model when validation loss decrease. """
         torch.save(model.state_dict(), self.save_name)
-        print_log("Model saved", log)
+        logger.info("Model saved", self.log)
         
         
 # -----------------------------------------
 # Class for training the custom ViT-Decoder
 # -----------------------------------------
 class ModelTrainer:
-    def __init__(self, args, model, train_loader, val_loader):
-        self.args = args
+    def __init__(self, model, train_loader, val_loader):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.save_dir = "app/logs/"
         self.init_train_components()
         # Initialize early stopping and AMP scaler
-        self.early_stop = EarlyStop(patience=5, delta=0.001, save_name=os.path.join(args.save_dir, 'Best_ViTDec.pt'))
-        self.scaler = torch.amp.GradScaler(enabled=args.amp) if args.amp else None
+        
+        self.early_stop = EarlyStop(patience=5, delta=0.001)
+        self.scaler = torch.amp.GradScaler(enabled=AMP) 
         
         # Setup directories and logs
-        os.makedirs(args.save_dir, exist_ok=True)
-        self.log_path = os.path.join(args.save_dir, 'training_log.txt')
+        os.makedirs(self.save_dir, exist_ok=True)
+        self.log_path = os.path.join(self.save_dir, 'training_log.txt')
         self.log = open(self.log_path, 'w')
     
     def __del__(self):

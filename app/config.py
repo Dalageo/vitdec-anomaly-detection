@@ -4,7 +4,11 @@ from torchvision import transforms as T
 
 DATASET_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/dataset"
 
-# training configs
+# Trainer settings
+AMP = True
+
+
+# Data training configs
 VAL_RATIO = 0.15
 TEST_RATIO = 0.5
 BATCH_SIZE = 16

@@ -1,9 +1,35 @@
+import sys
 import time
 import torch
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
 
+class LoggerConfig:
+    def __init__(self):
+        self.log_level = "INFO"
+
+    def get_logger(self, name: str) -> logging.Logger:
+        level_int = getattr(logging, self.log_level.upper(), logging.INFO)
+        
+        logger = logging.getLogger(name)
+        if logger.hasHandlers():
+            logger.handlers.clear()
+
+        console_handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter("%(levelname)s - %(name)s - %(message)s")
+        console_handler.setFormatter(formatter)
+        
+        logger.addHandler(console_handler)
+        logger.setLevel(level_int)
+        logger.propagate = False
+        
+        return logger
+    
+logger = LoggerConfig().get_logger(__name__)
+    
+    
 # -------------------------
 # Tuple Conversion Function
 # -------------------------
