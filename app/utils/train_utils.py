@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
-from app.config import AMP
+from app.config import AMP, BETA_1, BETA_2, LR_VIT, LR_DEC, WD_VIT, WD_DEC, EPOCHS, DEVICE, BATCH_SIZE, MEAN, STD
 from app.utils.utils import LoggerConfig
 from app.utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
 
@@ -55,22 +55,42 @@ class EarlyStop:
 # -----------------------------------------
 # Class for training the custom ViT-Decoder
 # -----------------------------------------
-class ModelTrainer:
+class ViTDecTrainer:
     def __init__(self, model, train_loader, val_loader):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.save_dir = "app/logs/"
-        self.init_train_components()
-        # Initialize early stopping and AMP scaler
         
-        self.early_stop = EarlyStop(patience=5, delta=0.001)
-        self.scaler = torch.amp.GradScaler(enabled=AMP) 
-        
-        # Setup directories and logs
+        # System & Logging Setup
+        self.save_dir = "app/checkpoints/"
         os.makedirs(self.save_dir, exist_ok=True)
         self.log_path = os.path.join(self.save_dir, 'training_log.txt')
         self.log = open(self.log_path, 'w')
+        self.device = DEVICE
+        
+        # Data & Training Hyperparameters
+        self.epochs = EPOCHS
+        self.batch_size = BATCH_SIZE
+        self.mean = MEAN
+        self.std = STD
+        
+        # Optimizer Configuration
+        self.lr_vit = LR_VIT
+        self.lr_dec = LR_DEC
+        self.wd_vit = WD_VIT
+        self.wd_dec = WD_DEC
+        self.beta1 = BETA_1
+        self.beta2 = BETA_2
+        self.amp = AMP
+        
+        # Loss Functions & Tools
+        self.mse = nn.MSELoss()
+        self.cross_entropy = nn.CrossEntropyLoss()
+        self.scaler = torch.amp.GradScaler(enabled=AMP) 
+        self.early_stop = EarlyStop(patience=5, delta=0.001)
+        
+        # Initialize Training Components
+        self.get_train_components()
     
     def __del__(self):
         """Ensures the log file is closed when the trainer instance is deleted"""
@@ -80,20 +100,20 @@ class ModelTrainer:
     # ---------------------------------------
     # Optimizers and scheduler initialization 
     # ---------------------------------------
-    def init_train_components(self):
+    def get_train_components(self):
         # Vit's optimizer Initialization
         self.optimizer_vit = torch.optim.Adam(
             self.model.vit_encoder.parameters(),
-            lr=self.args.lr_vit,
-            betas=(self.args.beta1, self.args.beta2),
-            weight_decay=self.args.wd_vit
+            lr=self.lr_vit,
+            betas=(self.beta1, self.beta2),
+            weight_decay=self.wd_vit
         )
         # Decoder's optimizer Initialization
         self.optimizer_dec = torch.optim.Adam(
             self.model.decoder.parameters(),
-            lr=self.args.lr_dec,
-            betas=(self.args.beta1, self.args.beta2),
-            weight_decay=self.args.wd_dec
+            lr=self.lr_dec,
+            betas=(self.beta1, self.beta2),
+            weight_decay=self.wd_dec
         )
         
         # Scheduler's Initialization
@@ -111,20 +131,17 @@ class ModelTrainer:
     def train_epoch(self, epoch):
         # Set model to training mode
         self.model.train()
-        MSE = nn.MSELoss()
-        CrossEntropy = nn.CrossEntropyLoss()
-
-        total_loss = 0.0
-        total_reconstruction_loss = 0.0
-        total_classification_loss = 0.0
-        num_batches = 0
-        num_label_samples = 0  # total number of images used for classification
-        num_recon_samples = 0  # total number of images used for reconstruction
+        
+        sum_recon_loss = 0.0
+        sum_cls_loss = 0.0
+        total_recon_samples = 0
+        total_cls_samples = 0
 
         for (x, y, _) in tqdm(self.train_loader):
-            x = x.to(self.args.device)
-            y = y.to(self.args.device)
+            x = x.to(self.device)
+            y = y.to(self.device)
 
+            # Zero Gradients
             self.optimizer_vit.zero_grad()
             self.optimizer_dec.zero_grad()
             
@@ -133,78 +150,55 @@ class ModelTrainer:
             normal_mask = y == 0
             anomaly_mask = y == 1
 
-            # Initialize loss components
-            reconstruction_loss = torch.tensor(0.0, device=self.args.device)
-            classification_loss = torch.tensor(0.0, device=self.args.device)
-
-            if self.args.amp:
-                with torch.amp.autocast(device_type=self.args.device):
-                    # Unlabeled data for reconstruction only
-                    if base_mask.any():
-                        _, reconstructed_output = self.model(x[base_mask], return_logits=False, return_reconstruction=True)
-                        reconstruction_loss = MSE(reconstructed_output, x[base_mask])
-                        num_recon_samples += base_mask.sum().item()
-            
-                    # Normal data for both classification and reconstruction
-                    if normal_mask.any():
-                        cls_token_logits, reconstructed_output = self.model(x[normal_mask], return_logits=True, return_reconstruction=True)
-                        classification_loss = CrossEntropy(cls_token_logits, y[normal_mask])
-                        reconstruction_loss += MSE(reconstructed_output, x[normal_mask])
-                        num_label_samples += normal_mask.sum().item()
-                        num_recon_samples += normal_mask.sum().item()
-            
-                    # Anomalous data for classification only
-                    if anomaly_mask.any():
-                        cls_token_logits, _ = self.model(x[anomaly_mask], return_logits=True, return_reconstruction=False)
-                        classification_loss += CrossEntropy(cls_token_logits, y[anomaly_mask])
-                        num_label_samples += anomaly_mask.sum().item()
+            with torch.amp.autocast(device_type=self.device, enabled=self.amp):
+                # Initialize batch losses
+                recon_loss_batch = torch.tensor(0.0, device=self.device)
+                cls_loss_batch = torch.tensor(0.0, device=self.device)
                 
-                # Compute the total loss
-                loss = classification_loss + reconstruction_loss
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer_vit)
-                self.scaler.step(self.optimizer_dec)
-                self.scaler.update()
+                # Reconstruction Logic (Base + Normal)
+                recon_mask = base_mask | normal_mask
+                if recon_mask.any():
+                    _, recon_output = self.model(x[recon_mask], return_logits=False, return_reconstruction=True)
+                    recon_loss_batch = self.mse(recon_output, x[recon_mask])
 
-            else:
-                # Compute losses without AMP
-                if base_mask.any():
-                    _, reconstructed_output = self.model(x[base_mask], return_logits=False, return_reconstruction=True)
-                    reconstruction_loss = MSE(reconstructed_output, x[base_mask])
-                    num_recon_samples += base_mask.sum().item()
+                    # Multiply mean by count to get sum of errors
+                    count = recon_mask.sum().item()
+                    sum_recon_loss += recon_loss_batch.item() * count
+                    total_recon_samples += count
         
-                if normal_mask.any():
-                    cls_token_logits, reconstructed_output = self.model(x[normal_mask], return_logits=True, return_reconstruction=True)
-                    classification_loss = CrossEntropy(cls_token_logits, y[normal_mask])
-                    reconstruction_loss += MSE(reconstructed_output, x[normal_mask])
-                    num_label_samples += normal_mask.sum().item()
-                    num_recon_samples += normal_mask.sum().item()
-        
-                if anomaly_mask.any():
-                    cls_token_logits, _ = self.model(x[anomaly_mask], return_logits=True, return_reconstruction=False)
-                    classification_loss += CrossEntropy(cls_token_logits, y[anomaly_mask])
-                    num_label_samples += anomaly_mask.sum().item()
+                # Classification Logic (Normal + Anomaly)
+                cls_mask = normal_mask | anomaly_mask
+                if cls_mask.any():
+                    cls_logits, _ = self.model(x[cls_mask], return_logits=True, return_reconstruction=False)
+                    cls_loss_batch = self.cross_entropy(cls_logits, y[cls_mask])
                     
-                loss = classification_loss + reconstruction_loss
-                loss.backward()
-                self.optimizer_vit.step()
-                self.optimizer_dec.step()
-            
-
-            total_loss += loss.item()
-            total_reconstruction_loss += reconstruction_loss.item()
-            total_classification_loss += classification_loss.item()
-
-            num_batches += 1  # Increment for each batch processed
-
-        estimated_label_batches = math.ceil(num_label_samples / self.args.batch_size)
-        estimated_recon_batches = math.ceil(num_recon_samples / self.args.batch_size)
-        avg_classification_loss = total_classification_loss / estimated_label_batches if estimated_label_batches > 0 else 0
-        avg_reconstruction_loss = total_reconstruction_loss / estimated_recon_batches if estimated_recon_batches > 0 else 0
-        avg_loss = avg_classification_loss + avg_reconstruction_loss
+                    # Multiply mean by count to get sum of errors
+                    count = cls_mask.sum().item()
+                    sum_cls_loss += cls_loss_batch.item() * count
+                    total_cls_samples += count
+                    
+                # Total Loss
+                total_loss = cls_loss_batch + recon_loss_batch
         
-        print_log(f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_reconstruction_loss:.6f} | Avg Classification Loss: {avg_classification_loss:.6f}', self.log)
-        return avg_loss, avg_reconstruction_loss, avg_classification_loss
+            # Backward Pass
+            if (recon_mask.any() or cls_mask.any()):
+                if self.amp:
+                    self.scaler.scale(total_loss).backward()
+                    self.scaler.step(self.optimizer_vit)
+                    self.scaler.step(self.optimizer_dec)
+                    self.scaler.update()
+                else:
+                    total_loss.backward()
+                    self.optimizer_vit.step()
+                    self.optimizer_dec.step()
+
+        # Calculate Averages
+        avg_recon_loss = sum_recon_loss / total_recon_samples if total_recon_samples > 0 else 0.0
+        avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
+        avg_loss = avg_recon_loss + avg_cls_loss
+        
+        print_log(f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}', self.log)
+        return avg_loss, avg_recon_loss, avg_cls_loss
 
 
     # ----------------------------------------
@@ -213,19 +207,18 @@ class ModelTrainer:
     def val_epoch(self, epoch):
         # Switch the model to evaluation mode
         self.model.eval()
-        MSE = nn.MSELoss()
-        CrossEntropy = nn.CrossEntropyLoss()
 
-        total_loss = 0.0
-        total_classification_loss = 0.0
-        total_reconstruction_loss = 0.0
-        num_batches = 0
-        num_label_samples = 0  # total number of images used for classification
-        num_recon_samples = 0  # total number of images used for reconstruction
+        sum_recon_loss = 0.0
+        sum_cls_loss = 0.0
+        total_recon_samples = 0
+        total_cls_samples = 0
+        
+        last_recon = None
+        last_x = None
 
         for (x, y, _) in tqdm(self.val_loader):
-            x = x.to(self.args.device)
-            y = y.to(self.args.device)
+            x = x.to(self.device)
+            y = y.to(self.device)
 
             # Masks for processing logic
             base_mask = y == -1
@@ -233,50 +226,42 @@ class ModelTrainer:
             anomaly_mask = y == 1
 
             with torch.no_grad():
-                # Initialize loss components
-                reconstruction_loss = torch.tensor(0.0, device=self.args.device)
-                classification_loss = torch.tensor(0.0, device=self.args.device)
+                # Reconstruction Logic (Base + Normal) 
+                recon_mask = base_mask | normal_mask
+                if recon_mask.any():
+                    _, recon_output = self.model(x[recon_mask], return_logits=False, return_reconstruction=True)
+                    loss_batch = self.mse(recon_output, x[recon_mask])
+                    
+                    # Multiply mean by count to get sum of errors
+                    count = recon_mask.sum().item()
+                    sum_recon_loss += loss_batch.item() * count
+                    total_recon_samples += count
+                    
+                    # Save images for plotting
+                    last_recon = recon_output
+                    last_x = x[recon_mask]
+                    
+                # Classification Logic (Normal + Anomaly)
+                cls_mask = normal_mask | anomaly_mask
+                if cls_mask.any():
+                    cls_logits, _ = self.model(x[cls_mask], return_logits=True, return_reconstruction=False)
+                    loss_batch = self.cross_entropy(cls_logits, y[cls_mask])
+                    
+                    # Multiply mean by count to get sum of errors
+                    count = cls_mask.sum().item()
+                    sum_cls_loss += loss_batch.item() * count
+                    total_cls_samples += count
 
-                # Unlabeled data for reconstruction only
-                if (y == -1).any():
-                    _, reconstructed_output = self.model(x[base_mask], return_logits=False, return_reconstruction=True)
-                    reconstruction_loss = MSE(reconstructed_output, x[base_mask])
-                    num_recon_samples += (base_mask).sum().item()
+        # Calculate Correct Averages
+        avg_recon_loss = sum_recon_loss / total_recon_samples if total_recon_samples > 0 else 0.0
+        avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
+        avg_loss = avg_recon_loss + avg_cls_loss
 
-                # Normal data for both classification and reconstruction
-                if (y == 0).any():
-                    cls_token_logits, reconstructed_output = self.model(x[normal_mask], return_logits=True, return_reconstruction=True)
-                    classification_loss = CrossEntropy(cls_token_logits, y[normal_mask])
-                    reconstruction_loss += MSE(reconstructed_output, x[normal_mask])
-                    num_label_samples += (normal_mask).sum().item()
-                    num_recon_samples += (normal_mask).sum().item()
+               
+        if epoch % 1 == 0 and last_recon is not None:
+            plot_show(last_recon, last_x, epoch, self.mean, self.std)
 
-                # Anomalous data for classification only
-                if (y == 1).any():
-                    cls_token_logits, _ = self.model(x[anomaly_mask], return_logits=True, return_reconstruction=False)
-                    classification_loss += CrossEntropy(cls_token_logits, y[anomaly_mask])
-                    num_label_samples += (anomaly_mask).sum().item()
-
-                # Sum the losses
-                loss = classification_loss + reconstruction_loss
-
-                total_loss += loss.item()
-                total_reconstruction_loss += reconstruction_loss.item()
-                total_classification_loss += classification_loss.item()
-
-                num_batches += 1  # Increment for each batch processed
-
-        estimated_label_batches = math.ceil(num_label_samples / self.args.batch_size)
-        estimated_recon_batches = math.ceil(num_recon_samples / self.args.batch_size)
-        avg_classification_loss = total_classification_loss / estimated_label_batches if estimated_label_batches > 0 else 0
-        avg_reconstruction_loss = total_reconstruction_loss / estimated_recon_batches if estimated_recon_batches > 0 else 0
-        avg_loss = avg_classification_loss + avg_reconstruction_loss
-
-        # Optionally, display reconstructed images every 5 epochs
-        if epoch % 1 == 0:
-            plot_show(reconstructed_output, x, epoch, self.args.mean, self.args.std)
-            
-        # Print learning rate
+        # Print learning rate for optimizer_vit
         for i, param_group in enumerate(self.optimizer_vit.param_groups):
             print(f'Valid Epoch {epoch}: Learning Rate for Transformer: {param_group["lr"]:.6f}')
         
@@ -284,19 +269,16 @@ class ModelTrainer:
         for i, param_group in enumerate(self.optimizer_dec.param_groups):
             print(f'Valid Epoch {epoch}: Learning Rate for Decoder: {param_group["lr"]:.6f}')
 
-
-        log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_reconstruction_loss:.6f}'
-        if num_label_samples > 0:
-            log_msg += f' | Avg Classification Loss: {avg_classification_loss:.6f}'
+        log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
         print_log(log_msg, self.log)
 
-        return avg_loss, avg_reconstruction_loss, avg_classification_loss
+        return avg_loss, avg_recon_loss, avg_cls_loss
 
 
     # -----------------------------------
     # Executes the full training workflow
     # -----------------------------------
-    def execute_training(self):
+    def train(self):
         # Set up time tracking
         start_time = time.time()
         epoch_time = AverageMeter()
@@ -306,11 +288,11 @@ class ModelTrainer:
         val_total_losses, val_reconstruction_losses, val_classification_losses = [], [], []
 
         # Main training loop
-        for epoch in range(1, self.args.epochs + 1):
+        for epoch in range(1, self.epochs + 1):
             # Estimate time remaining
-            need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (self.args.epochs - epoch))
+            need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (self.epochs - epoch))
             need_time = f'[Need: {need_hour:02d}:{need_mins:02d}:{need_secs:02d}]'
-            print_log(f' {epoch:3d}/{self.args.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}', self.log)
+            print_log(f' {epoch:3d}/{self.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}', self.log)
             
             # Receive detailed losses from training
             train_loss, train_recon_loss, train_class_loss = self.train_epoch(epoch)
@@ -325,7 +307,7 @@ class ModelTrainer:
             val_classification_losses.append(val_class_loss)
 
             # Early stopping checks against total validation loss
-            if self.early_stop(val_class_loss, val_recon_loss, self.model, self.optimizer_vit, self.optimizer_dec, self.log):
+            if self.early_stop(val_class_loss, val_recon_loss, self.model):
                 print_log("Training stopped early due to lack of improvement.", self.log)
                 break
 

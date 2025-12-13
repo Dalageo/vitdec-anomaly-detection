@@ -1,17 +1,30 @@
 
+import torch
 from PIL import Image
 from torchvision import transforms as T
 
 DATASET_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/dataset"
 
-# Trainer settings
-AMP = True
 
+# Data & Training Hyperparameters
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+AMP = True
+BETA_1 = 0.85
+BETA_2 = 0.999
+
+# Vision Transformer
+LR_VIT = 1e-5
+LR_DEC = 1e-4
+WD_VIT = 1e-5
+WD_DEC = 1e-5
+
+
+EPOCHS = 50
+BATCH_SIZE = 16
 
 # Data training configs
 VAL_RATIO = 0.15
 TEST_RATIO = 0.5
-BATCH_SIZE = 16
 SEED = 42
 
 IMG_RES = 384

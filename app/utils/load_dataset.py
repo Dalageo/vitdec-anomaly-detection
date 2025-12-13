@@ -161,8 +161,7 @@ class MVTecDataModule:
 
     def _setup_data(self, ):
         """Loads datasets once and calculates all split indices once."""
-        print("Loading datasets and calculating splits...")
-        
+
         # Load Datasets
         self.train_dataset = MVTecDataset(self.dataset_path, is_train=True, transforms_dict=self.train_transforms, data_info=self.data_info)
         self.bound_dataset = MVTecDataset(self.dataset_path, is_train=False, transforms_dict=self.test_transforms, data_info=self.data_info)
