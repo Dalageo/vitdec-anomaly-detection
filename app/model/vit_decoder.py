@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from functools import partial
-from app.model.weight_init import _load_weights, initialize_weights
+from app.model.weights import load_weights, initialize_weights
 
 
 # -------------------------
@@ -374,7 +374,7 @@ def vitdec_init(args):
 
     # Load the model weights
     if args.vit_weights:
-        _load_weights(vit_encoder, args.vit_weights)
+        load_weights(vit_encoder, args.vit_weights)
         
     # Change the classifier head for the classification task
     vit_encoder.head = nn.Linear(vit_encoder.head.in_features, args.num_classes) 
