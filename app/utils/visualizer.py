@@ -60,26 +60,26 @@ class Visualizer:
             plt.show()
 
 
-    def plot_show(self, img, ori, epoch):
-        """# Plot and show original and reconstructed images side-by-side."""
+    def plot_show(self, original_img, recon_img, epoch):
+        """Plot and show original and reconstructed images side-by-side."""
         # Denormalize and prepare the first image in the batch for display
-        img_denorm = self.denormalize(img[0]).clamp(0, 1).detach().cpu().numpy()
-        ori_denorm = self.denormalize(ori[0]).clamp(0, 1).detach().cpu().numpy()
+        orginal_denorm = self.denormalize(original_img[0]).clamp(0, 1).detach().cpu().numpy()
+        recon_denorm = self.denormalize(recon_img[0]).clamp(0, 1).detach().cpu().numpy()
 
         # Transpose tensors from Channel-Height-Width to Height-Width-Channel format for plotting
-        img_numpy = np.transpose(img_denorm, (1, 2, 0))
-        ori_numpy = np.transpose(ori_denorm, (1, 2, 0))
+        original_numpy = np.transpose(orginal_denorm, (1, 2, 0))
+        recon_numpy = np.transpose(recon_denorm, (1, 2, 0))
 
         # Plotting the original and reconstructed images
         fig, plots = plt.subplots(1, 2)
         fig.set_figwidth(9)
         fig.set_tight_layout(True)
 
-        plots[0].imshow(ori_numpy)
+        plots[0].imshow(original_numpy)
         plots[0].set_title(f"Original - Epoch {epoch}")
         plots[0].axis('off') 
 
-        plots[1].imshow(img_numpy)
+        plots[1].imshow(recon_numpy)
         plots[1].set_title(f"Reconstructed - Epoch {epoch}")
         plots[1].axis('off')  
 

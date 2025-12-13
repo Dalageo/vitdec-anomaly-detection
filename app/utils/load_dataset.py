@@ -5,9 +5,8 @@ import torch
 import numpy as np
 from PIL import Image
 from collections import Counter
-import matplotlib.pyplot as plt
+from torchvision import transforms as T
 from app.utils.log_utils import LoggerConfig
-from torchvision import transforms as T, utils
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
 from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
@@ -220,54 +219,4 @@ class MVTecDataModule:
     @property
     def test_dataloader(self):
         return TorchDataLoader(self.bound_dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(self.test_idx))
-    
-    
-# ---------------------
-# Visualize Image Class
-# ---------------------
-class VisualizeImages:
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    # Denormalize a tensor image
-    def denormalize(self, tensor):
-        mean = torch.tensor(self.mean).view(3, 1, 1)
-        std = torch.tensor(self.std).view(3, 1, 1)
-        return tensor * std + mean
-
-    # Display an image on a given axes.
-    def imshow(self, img, ax):
-        img = self.denormalize(img)  # Denormalize the image
-        img = img.clamp(0, 1)        # Ensure the values are in the range [0, 1]
-        img = img.permute(1, 2, 0)   # Convert from CxHxW to HxWxC
-        ax.imshow(img.numpy())       # Convert to numpy for imshow
-        ax.axis('off')
-
-    # Displays images from the data loader.
-    def check_data(self, loader, img_batch_info):
-        for i, (images, labels, categories) in enumerate(loader):
-            if i >= img_batch_info:
-                break
-            logger.info(f"Batch {i+1} labels:", labels)
-            logger.info(f"Batch {i+1} categories:", categories)
-
-            # Denormalize the images in the batch before passing to make_grid
-            images = torch.stack([self.denormalize(img) for img in images])
-            
-            # Create a grid with black padding (pad_value=0)
-            grid_img = utils.make_grid(images, nrow=10, padding=15, pad_value=255)  # Pad with black (0)
-
-            # Make sure the image tensor is in the right format
-            plt.figure(figsize=(12, 8))
-            plt.title(f"Batch {i+1}")  
-            
-            # Show the grid without denormalizing again
-            ax = plt.gca()
-            grid_img = grid_img.clamp(0, 1)         # Ensure the grid image is within [0, 1]
-            grid_img = grid_img.permute(1, 2, 0)    # Convert to HxWxC for matplotlib
-            ax.imshow(grid_img.numpy())             # Display using matplotlib
-            ax.axis('off')  
-            plt.tight_layout()  
-            plt.show()
             

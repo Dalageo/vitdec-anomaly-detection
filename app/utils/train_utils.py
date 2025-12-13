@@ -4,8 +4,9 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
+from app.utils.visualizer import Visualizer
 from app.utils.log_utils import LoggerConfig
-from app.utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
+from app.utils.log_utils import AverageMeter, print_log, convert_secs2time
 from app.config import MEAN, STD, \
                        EPOCHS, BATCH_SIZE, DEVICE, \
                        AMP, BETA_1, BETA_2, \
@@ -64,6 +65,7 @@ class ViTDecTrainer:
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.visualizer = Visualizer()
         
         # System & Logging Setup
         self.save_dir = "app/checkpoints/"
@@ -263,7 +265,7 @@ class ViTDecTrainer:
 
                
         if epoch % 1 == 0 and last_recon is not None:
-            plot_show(last_recon, last_x, epoch, self.mean, self.std)
+            self.visualizer.plot_show(last_recon, last_x, epoch)
 
         # Print learning rate for optimizer_vit
         for i, param_group in enumerate(self.optimizer_vit.param_groups):
@@ -325,4 +327,4 @@ class ViTDecTrainer:
             start_time = time.time()
 
         # Plot training and validation losses.
-        plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses)
+        self.visualizer.plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses)
