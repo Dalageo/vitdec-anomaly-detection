@@ -34,6 +34,7 @@ IMG_RES = 384
 MEAN = [0.5, 0.5, 0.5]
 STD = [0.5, 0.5, 0.5]
 
+# Augmentation Config
 AUGMENTATION_CONFIG = {  
         "basic_transforms": [
                     # Resizing using LANCZOS filter for high-quality downsampling

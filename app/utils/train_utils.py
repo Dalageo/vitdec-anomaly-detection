@@ -1,13 +1,12 @@
 import os
-import math
 import time
 import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
-from app.config import AMP, BETA_1, BETA_2, LR_VIT, LR_DEC, WD_VIT, WD_DEC, EPOCHS, DEVICE, BATCH_SIZE, MEAN, STD
 from app.utils.utils import LoggerConfig
 from app.utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
+from app.config import AMP, BETA_1, BETA_2, LR_VIT, LR_DEC, WD_VIT, WD_DEC, EPOCHS, DEVICE, BATCH_SIZE, MEAN, STD
 
 logger = LoggerConfig().get_logger(__name__)
 
@@ -17,13 +16,13 @@ logger = LoggerConfig().get_logger(__name__)
 class EarlyStop:
     def __init__(self, patience=5, delta=0):
         self.patience = patience
-        self.verbose = True
-        self.save_name = "checkpoint.pt"
+        self.delta = delta
         self.counter = 0
+        self.best_score = None
         self.early_stop = False
         self.val_loss_min = np.Inf
-        self.delta = delta
-        self.log = open(self.log_path, 'w')
+        self.save_name = "checkpoint.pt"
+        self.verbose = True
 
     def __call__(self, class_loss, recon_loss, model):
         overall_loss = class_loss + recon_loss
@@ -31,17 +30,19 @@ class EarlyStop:
         # Check if the new loss is significantly better
         if overall_loss < self.val_loss_min - self.delta:  
             if self.verbose:
-                logger.info(f"Overall loss decreased ({self.val_loss_min:.6f} --> {overall_loss:.6f}). Saving model...", self.log)
-            self.save_checkpoint(overall_loss, model)
+                logger.info(f"Overall loss decreased ({self.val_loss_min:.6f} --> {overall_loss:.6f}). Saving model...")
+                
+            self.save_checkpoint(model)
             self.val_loss_min = overall_loss 
             self.counter = 0
         else:
             self.counter += 1
-            logger.info(f"EarlyStopping counter: {self.counter} out of {self.patience}", self.log)
+            if self.verbose:
+                logger.info(f"EarlyStopping counter: {self.counter} out of {self.patience}")
 
         if self.counter >= self.patience:
             self.early_stop = True
-            logger.warning("Early stopping triggered", self.log)
+            logger.warning("Early stopping triggered")
             return True
 
         return False
@@ -49,7 +50,7 @@ class EarlyStop:
     def save_checkpoint(self, model):
         """ Saves model when validation loss decrease. """
         torch.save(model.state_dict(), self.save_name)
-        logger.info("Model saved", self.log)
+        logger.info("Model saved")
         
         
 # -----------------------------------------
@@ -263,11 +264,11 @@ class ViTDecTrainer:
 
         # Print learning rate for optimizer_vit
         for i, param_group in enumerate(self.optimizer_vit.param_groups):
-            print(f'Valid Epoch {epoch}: Learning Rate for Transformer: {param_group["lr"]:.6f}')
+            logger.info(f'Valid Epoch {epoch}: Learning Rate for Transformer: {param_group["lr"]:.6f}')
         
         # Print learning rates for optimizer_dec
         for i, param_group in enumerate(self.optimizer_dec.param_groups):
-            print(f'Valid Epoch {epoch}: Learning Rate for Decoder: {param_group["lr"]:.6f}')
+            logger.info(f'Valid Epoch {epoch}: Learning Rate for Decoder: {param_group["lr"]:.6f}')
 
         log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
         print_log(log_msg, self.log)
@@ -284,8 +285,8 @@ class ViTDecTrainer:
         epoch_time = AverageMeter()
         
         # Initialize loss tracking
-        train_total_losses, train_reconstruction_losses, train_classification_losses = [], [], []
-        val_total_losses, val_reconstruction_losses, val_classification_losses = [], [], []
+        train_total_losses, train_recon_losses, train_cls_losses = [], [], []
+        val_total_losses, val_recon_losses, val_cls_losses = [], [], []
 
         # Main training loop
         for epoch in range(1, self.epochs + 1):
@@ -295,19 +296,19 @@ class ViTDecTrainer:
             print_log(f' {epoch:3d}/{self.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}', self.log)
             
             # Receive detailed losses from training
-            train_loss, train_recon_loss, train_class_loss = self.train_epoch(epoch)
+            train_loss, train_recon_loss, train_cls_loss = self.train_epoch(epoch)
             train_total_losses.append(train_loss)
-            train_reconstruction_losses.append(train_recon_loss)
-            train_classification_losses.append(train_class_loss)
+            train_recon_losses.append(train_recon_loss)
+            train_cls_losses.append(train_cls_loss)
 
             # Receive detailed losses from validation
-            val_loss, val_recon_loss, val_class_loss = self.val_epoch(epoch)
+            val_loss, val_recon_loss, val_cls_loss = self.val_epoch(epoch)
             val_total_losses.append(val_loss)
-            val_reconstruction_losses.append(val_recon_loss)
-            val_classification_losses.append(val_class_loss)
+            val_recon_losses.append(val_recon_loss)
+            val_cls_losses.append(val_cls_loss)
 
             # Early stopping checks against total validation loss
-            if self.early_stop(val_class_loss, val_recon_loss, self.model):
+            if self.early_stop(val_cls_loss, val_recon_loss, self.model):
                 print_log("Training stopped early due to lack of improvement.", self.log)
                 break
 
@@ -319,4 +320,4 @@ class ViTDecTrainer:
             start_time = time.time()
 
         # Plot training and validation losses.
-        plot_loss(train_total_losses, val_total_losses, train_classification_losses, val_classification_losses, train_reconstruction_losses, val_reconstruction_losses)
+        plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses)
