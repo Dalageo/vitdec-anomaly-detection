@@ -9,9 +9,9 @@ from app.utils.log_utils import LoggerConfig
 
 logger = LoggerConfig().get_logger(__name__)
 
-# ---------------------
-# Visualize Image Class
-# ---------------------
+# ----------------
+# Visualizer Class
+# ----------------
 class Visualizer:
     def __init__(self):
         self.mean = MEAN
@@ -24,16 +24,18 @@ class Visualizer:
         std = torch.tensor(self.std).view(3, 1, 1)
         return tensor * std + mean
 
-    # Display an image on a given axes.
+    
     def imshow(self, img, ax):
+        """Display an image on a given axes."""
         img = self.denormalize(img)  # Denormalize the image
         img = img.clamp(0, 1)        # Ensure the values are in the range [0, 1]
         img = img.permute(1, 2, 0)   # Convert from CxHxW to HxWxC
         ax.imshow(img.numpy())       # Convert to numpy for imshow
         ax.axis('off')
 
-    # Displays images from the data loader.
+    
     def check_data(self, loader, img_batch_info):
+        """Displays images from the data loader."""
         for i, (images, labels, categories) in enumerate(loader):
             if i >= img_batch_info:
                 break
@@ -90,7 +92,7 @@ class Visualizer:
      
     def plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses):
         """Plot training and validation loss curves for total, classification, and reconstruction losses."""
-        # Initialize a figure with dimensions (15, 5) for the plots
+
         plt.figure(figsize=(15, 5))
         
         # Plotting total loss

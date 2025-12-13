@@ -11,6 +11,7 @@ class LoggerConfig:
         self.log_level = "INFO"
 
     def get_logger(self, name: str) -> logging.Logger:
+        """Configures and returns a logger with a specified name."""
         level_int = getattr(logging, self.log_level.upper(), logging.INFO)
         
         logger = logging.getLogger(name)
@@ -36,15 +37,15 @@ class AverageMeter(object):
     def __init__(self):
         self.reset()
 
-    # Reset all statistics.
     def reset(self):
+        """Reset all statistics."""
         self.val = 0
         self.avg = 0
         self.sum = 0
         self.count = 0
 
-    # Update the statistics for the meter
     def update(self, val, n=1):
+        """Update the statistics for the meter"""
         self.val = val
         self.sum += val * n
         self.count += n

@@ -281,9 +281,9 @@ class ViTDecTrainer:
         return avg_loss, avg_recon_loss, avg_cls_loss
 
 
-    # -----------------------------------
-    # Executes the full training workflow
-    # -----------------------------------
+    # --------------------------
+    # Executes training workflow
+    # --------------------------
     def train(self):
         # Set up time tracking
         start_time = time.time()
