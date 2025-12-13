@@ -4,13 +4,13 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
-from app.utils.utils import LoggerConfig
+from app.utils.log_utils import LoggerConfig
 from app.utils import print_log, plot_show, plot_loss, AverageMeter, convert_secs2time
-from app.config import AMP, BETA_1, BETA_2, \
-                       LR_VIT, LR_DEC, WD_VIT, WD_DEC, \
+from app.config import MEAN, STD, \
                        EPOCHS, BATCH_SIZE, DEVICE, \
-                       MEAN, STD
-
+                       AMP, BETA_1, BETA_2, \
+                       LR_VIT, LR_DEC, WD_VIT, WD_DEC \
+                       
 logger = LoggerConfig().get_logger(__name__)
 
 # --------------
@@ -201,7 +201,7 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
         
-        print_log(f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}', self.log)
+        logger.info(f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}', self.log)
         return avg_loss, avg_recon_loss, avg_cls_loss
 
 
@@ -296,7 +296,8 @@ class ViTDecTrainer:
             # Estimate time remaining
             need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (self.epochs - epoch))
             need_time = f'[Need: {need_hour:02d}:{need_mins:02d}:{need_secs:02d}]'
-            print_log(f' {epoch:3d}/{self.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}', self.log)
+            log_msg = f' {epoch:3d}/{self.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}'
+            print_log(log_msg, self.log)
             
             # Receive detailed losses from training
             train_loss, train_recon_loss, train_cls_loss = self.train_epoch(epoch)
@@ -312,7 +313,8 @@ class ViTDecTrainer:
 
             # Early stopping checks against total validation loss
             if self.early_stop(val_cls_loss, val_recon_loss, self.model):
-                print_log("Training stopped early due to lack of improvement.", self.log)
+                log_msg = "Training stopped early due to lack of improvement."
+                print_log(log_msg, self.log)
                 break
 
             # Step the scheduler with the validation loss

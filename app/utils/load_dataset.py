@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from collections import Counter
 import matplotlib.pyplot as plt
-from app.utils.utils import LoggerConfig
+from app.utils.log_utils import LoggerConfig
 from torchvision import transforms as T, utils
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
