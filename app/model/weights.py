@@ -3,11 +3,10 @@ import numpy as np
 import torch.nn as nn
 
 
-
 # ---------------------------------------
 # Load Vision Transformer Encoder Weights
 # ---------------------------------------
-def _load_weights(model, checkpoint_path):
+def load_weights(model, checkpoint_path):
     weights = np.load(checkpoint_path, allow_pickle=True)
 
     def _n2p(w, transpose=False):

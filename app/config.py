@@ -1,19 +1,40 @@
 
+import torch
 from PIL import Image
 from torchvision import transforms as T
 
 DATASET_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/dataset"
 
-# training configs
-VAL_RATIO = 0.15
-TEST_RATIO = 0.5
-BATCH_SIZE = 16
-SEED = 42
 
+# Hardware setup: Auto-detect GPU
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Optimization settings
+AMP = True           # Enable Automatic Mixed Precision (faster training, less memory)
+BETA_1 = 0.85        # Adam optimizer first moment (momentum)
+BETA_2 = 0.999       # Adam optimizer second moment
+
+# Model Hyperparameters
+LR_VIT = 1e-5        # Encoder 
+LR_DEC = 1e-4        # Decoder 
+WD_VIT = 1e-5        # Encoder Weight Decay
+WD_DEC = 1e-5        # Decoder Weight Decay
+
+# Training Loop
+EPOCHS = 50
+BATCH_SIZE = 16
+
+# Dataset Splitting
+VAL_RATIO = 0.15     # 15% for Validation
+TEST_RATIO = 0.5     # 50% for Testing (Verify this logic relative to the remaining set)
+SEED = 42            # Global random seed
+
+# Image Preprocessing
 IMG_RES = 384
 MEAN = [0.5, 0.5, 0.5]
 STD = [0.5, 0.5, 0.5]
 
+# Augmentation Config
 AUGMENTATION_CONFIG = {  
         "basic_transforms": [
                     # Resizing using LANCZOS filter for high-quality downsampling

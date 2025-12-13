@@ -4,14 +4,14 @@ import glob
 import torch
 import numpy as np
 from PIL import Image
-from pathlib import Path
 from collections import Counter
-import matplotlib.pyplot as plt
-from torchvision import transforms as T, utils
+from torchvision import transforms as T
+from app.utils.log_utils import LoggerConfig
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
 from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
 
+logger = LoggerConfig().get_logger(__name__)
 
 # --------------------
 # Custom Dataset Class
@@ -38,7 +38,7 @@ class MVTecDataset(Dataset):
         # Print initial pixel value range
         if print_info:
             img_np = np.array(x)
-            print(f"Pixel range of `{os.path.basename(x_path)}`: min={img_np.min()}, max={img_np.max()}")
+            logger.info(f"Pixel range of `{os.path.basename(x_path)}`: min={img_np.min()}, max={img_np.max()}")
 
         # Apply the specific transformation based on the category
         if category in self.transforms_dict:
@@ -47,7 +47,7 @@ class MVTecDataset(Dataset):
         # Print pixel value range after transformation
         if print_info:
             x_tensor = torch.tensor(np.array(x)) / 255.0 
-            print(f"Transformed pixel range for `{os.path.basename(x_path)}`: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
+            logger.info(f"Transformed pixel range for `{os.path.basename(x_path)}`: min={x_tensor.min().item()}, max={x_tensor.max().item()}")
             self.data_info_counter -= 1
 
         return x, y, category
@@ -98,9 +98,9 @@ class MVTecDataset(Dataset):
             category.extend([actual_category] * num_anomaly_images)
             
         if self.data_info:
-            print(f"Loading {len(x)} images for {self.phase}.")
-            print("Class distribution:", Counter(y))
-            print("Categories:", Counter(category))
+            logger.info(f"Loading {len(x)} images for {self.phase}.")
+            logger.info("Class distribution:", Counter(y))
+            logger.info("Categories:", Counter(category))
             
         return x, y, category
     
@@ -161,8 +161,7 @@ class MVTecDataModule:
 
     def _setup_data(self, ):
         """Loads datasets once and calculates all split indices once."""
-        print("Loading datasets and calculating splits...")
-        
+
         # Load Datasets
         self.train_dataset = MVTecDataset(self.dataset_path, is_train=True, transforms_dict=self.train_transforms, data_info=self.data_info)
         self.bound_dataset = MVTecDataset(self.dataset_path, is_train=False, transforms_dict=self.test_transforms, data_info=self.data_info)
@@ -198,11 +197,11 @@ class MVTecDataModule:
         self.bound_idx, self.test_idx = next(sss_test.split(np.zeros(len(labels_bound)), labels_bound))
 
         if self.data_info:
-            print("\n---------- Dataset Distribution ----------")
-            print("Number of training images:", len(self.train_idx))
-            print("Number of validation images:", len(self.val_idx))
-            print("Number of bound images:", len(self.bound_idx))
-            print("Number of testing images:", len(self.test_idx))
+            logger.info("\n---------- Dataset Distribution ----------")
+            logger.info("Number of training images:", len(self.train_idx))
+            logger.info("Number of validation images:", len(self.val_idx))
+            logger.info("Number of bound images:", len(self.bound_idx))
+            logger.info("Number of testing images:", len(self.test_idx))
             
     # Dataloaders
     @property
@@ -220,53 +219,4 @@ class MVTecDataModule:
     @property
     def test_dataloader(self):
         return TorchDataLoader(self.bound_dataset, batch_size=self.batch_size, sampler=SubsetRandomSampler(self.test_idx))
-    
-    
-# ---------------------
-# Visualize Image Class
-# ---------------------
-class VisualizeImages:
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    # Denormalize a tensor image
-    def denormalize(self, tensor):
-        mean = torch.tensor(self.mean).view(3, 1, 1)
-        std = torch.tensor(self.std).view(3, 1, 1)
-        return tensor * std + mean
-
-    # Display an image on a given axes.
-    def imshow(self, img, ax):
-        img = self.denormalize(img)  # Denormalize the image
-        img = img.clamp(0, 1)        # Ensure the values are in the range [0, 1]
-        img = img.permute(1, 2, 0)   # Convert from CxHxW to HxWxC
-        ax.imshow(img.numpy())       # Convert to numpy for imshow
-        ax.axis('off')
-
-    # Displays images from the data loader.
-    def check_data(self, loader, img_batch_info):
-        for i, (images, labels, categories) in enumerate(loader):
-            if i >= img_batch_info:
-                break
-            print(f"Batch {i+1} labels:", labels)
-            print(f"Batch {i+1} categories:", categories)
-
-            # Denormalize the images in the batch before passing to make_grid
-            images = torch.stack([self.denormalize(img) for img in images])
             
-            # Create a grid with black padding (pad_value=0)
-            grid_img = utils.make_grid(images, nrow=10, padding=15, pad_value=255)  # Pad with black (0)
-
-            # Make sure the image tensor is in the right format
-            plt.figure(figsize=(12, 8))
-            plt.title(f"Batch {i+1}")  
-            
-            # Show the grid without denormalizing again
-            ax = plt.gca()
-            grid_img = grid_img.clamp(0, 1)         # Ensure the grid image is within [0, 1]
-            grid_img = grid_img.permute(1, 2, 0)    # Convert to HxWxC for matplotlib
-            ax.imshow(grid_img.numpy())             # Display using matplotlib
-            ax.axis('off')  
-            plt.tight_layout()  
-            plt.show()

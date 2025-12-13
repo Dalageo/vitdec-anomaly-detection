@@ -1,11 +1,15 @@
-import os
 import torch
-import argparse
 import torch.nn as nn
-from utils import to_2tuple
 from functools import partial
-from weight_init import _load_weights, initialize_weights
+from app.model.weights import load_weights, initialize_weights
 
+
+# -------------------------
+# Tuple Conversion Function
+# -------------------------
+def to_2tuple(x):
+    """Convert a single value to a 2-tuple, or return the tuple if it's already one."""
+    return (x, x) if not isinstance(x, tuple) else x
 
 # -----------------------
 # MLP Module with Dropout
@@ -33,8 +37,8 @@ class Mlp(nn.Module):
 # Patch Embedding Layer
 # ----------------------
 class PatchEmbed(nn.Module):
-    """ 2D Image to Patch Embedding
-    """
+    """ 2D Image to Patch Embedding"""
+    
     def __init__(self, img_size=384, patch_size=16, in_chans=3, embed_dim=768, norm_layer=None, flatten=True):
         super().__init__()
         img_size = to_2tuple(img_size)
@@ -370,7 +374,7 @@ def vitdec_init(args):
 
     # Load the model weights
     if args.vit_weights:
-        _load_weights(vit_encoder, args.vit_weights)
+        load_weights(vit_encoder, args.vit_weights)
         
     # Change the classifier head for the classification task
     vit_encoder.head = nn.Linear(vit_encoder.head.in_features, args.num_classes) 
