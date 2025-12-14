@@ -322,6 +322,8 @@ class ViTDecoder(nn.Module):
         # Load the model weights
         self.weights = load_weights(vit_encoder, VIT_WEIGHTS_PATH)
         
+        self.img_size = IMG_SIZE
+        
     def forward(self, x, return_logits=False, return_reconstruction=True):
         """Forward pass of the ViTDecoder module."""
         
@@ -342,10 +344,31 @@ class ViTDecoder(nn.Module):
         return cls_token_logits, reconstructed_output
     
     
+    # Test both the Vit and decoder model
+    def test_models(self):
+        """Test the forward pass with dummy data."""
+
+        # Generate a dummy input tensor based on the image resolution and model input format
+        device = next(self.parameters()).device
+        dummy_input = torch.randn(1, 3, self.img_size, self.img_size).to(device)
+
+        # Pass the dummy input through the vision transformer model
+        logits, features_output = self.vit_encoder(dummy_input, include_cls_token=True)
+        
+        # Pass the features output through the decoder model
+        decoded_image = self.decoder(features_output)
+
+        logger.info("---------- Vision Transformer Test Output ----------")
+        logger.info(f"Classification Logits Output Shape (for Classification): {logits.shape}")
+        logger.info(f"Features Output Shape (for Decoder Input): {features_output.shape}")
+        logger.info("---------- Decoder Test Output ----------")
+        logger.info(f"Output Image Shape (Reconstructed from Features): {decoded_image.shape}")
+    
+    
 # -----------------------------
 # Get ViTDecoder Model Function
 # -----------------------------
-def get_vitdec(output_test: bool=False):
+def get_vitdec():
     # Initialize the Vision Transformer
     vit_encoder = VisionTransformer(
         img_size=IMG_SIZE,  
@@ -372,48 +395,9 @@ def get_vitdec(output_test: bool=False):
     initialize_weights(decoder)
     # Move it to device
     decoder.to(DEVICE)
-        
-    # If the test argument is set, test the model output
-    if output_test:
-        tester = ViTDecTester(vit_encoder, decoder, DEVICE)
-        tester.test_models(IMG_SIZE)
-        
+    
     # Combine the Vision Transformer and Decoder into a single model, and transfer it to the device
     vit_dec = ViTDecoder(vit_encoder, decoder).to(DEVICE)
     
     # Return the model
     return vit_dec
-
-
-# -----------------------
-# Model Output Test Class
-# -----------------------
-class ViTDecTester:
-    def __init__(self, vit_model, decoder_model):
-        self.vit_model = vit_model
-        self.decoder_model = decoder_model
-        self.img_size = IMG_SIZE
-        self.device = DEVICE
-
-    # Generate a dummy input tensor based on the image resolution and model input format
-    def generate_dummy_input(self):
-        dummy_input = torch.randn(1, 3, self.img_size, self.img_size)
-        return dummy_input.to(self.device)
-
-    # Test both the Vit and decoder model
-    def test_models(self):
-        dummy_input = self.generate_dummy_input(self.img_size)
-
-        # Pass the dummy input through the vision transformer model
-        logits, features_output = self.vit_model(dummy_input, include_cls_token=True)
-        # Pass the features output through the decoder model
-        decoded_image = self.decoder_model(features_output)
-
-        logger.info("---------- Vision Transformer Test Output ----------")
-        logger.info(f"Classification Logits Output Shape (for Classification): {logits.shape}")
-        logger.info(f"Features Output Shape (for Decoder Input): {features_output.shape}")
-        logger.info("---------- Decoder Test Output ----------")
-        logger.info("Output Image Shape (Reconstructed from Features):", decoded_image.shape)
- 
-
-
