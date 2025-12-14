@@ -1,5 +1,4 @@
-
-
+import os
 import torch
 import numpy as np
 from torchvision import utils
@@ -64,8 +63,9 @@ class Visualizer:
             plt.show()
 
 
-    def plot_show(self, original_img, recon_img, epoch):
+    def plot_show(self, original_img, recon_img, epoch, save_plot: bool = False):
         """Plot and show original and reconstructed images side-by-side."""
+        
         # Denormalize and prepare the first image in the batch for display
         orginal_denorm = self.denormalize(original_img[0]).clamp(0, 1).detach().cpu().numpy()
         recon_denorm = self.denormalize(recon_img[0]).clamp(0, 1).detach().cpu().numpy()
@@ -88,7 +88,11 @@ class Visualizer:
         plots[1].axis('off')  
 
         # Save the plot
-        plt.savefig(f'Images/Epoch_{epoch}.png')  # Save the figure
+        if save_plot:
+            os.makedirs('Images', exist_ok=True)
+            plt.savefig(f'Images/Epoch_{epoch}.png')  
+        
+        plt.show()
         plt.close(fig)
         
      

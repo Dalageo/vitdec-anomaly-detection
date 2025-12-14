@@ -15,3 +15,6 @@ Images/
 
 # Notebooks
 *.ipynb
+
+# Model Checkpoints
+*.pt
