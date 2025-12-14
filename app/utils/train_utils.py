@@ -203,7 +203,10 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
         
-        logger.info(f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}', self.log)
+        log_msg = f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
+        logger.info(log_msg)
+        print_log(log_msg, self.log)
+        
         return avg_loss, avg_recon_loss, avg_cls_loss
 
 
@@ -263,7 +266,6 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
 
-               
         if epoch % 1 == 0 and last_recon is not None:
             self.visualizer.plot_show(last_recon, last_x, epoch)
 
@@ -276,6 +278,7 @@ class ViTDecTrainer:
             logger.info(f'Valid Epoch {epoch}: Learning Rate for Decoder: {param_group["lr"]:.6f}')
 
         log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
+        logger.info(log_msg)
         print_log(log_msg, self.log)
 
         return avg_loss, avg_recon_loss, avg_cls_loss

@@ -20,8 +20,8 @@ class Visualizer:
     # Denormalize a tensor image
     def denormalize(self, tensor):
         """Denormalize a tensor by scaling it to [0, 255] and converting to bytes."""
-        mean = torch.tensor(self.mean).view(3, 1, 1)
-        std = torch.tensor(self.std).view(3, 1, 1)
+        mean = torch.tensor(self.mean).view(3, 1, 1).to(tensor.device)
+        std = torch.tensor(self.std).view(3, 1, 1).to(tensor.device)
         return tensor * std + mean
 
     
