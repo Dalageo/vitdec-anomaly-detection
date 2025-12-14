@@ -5,6 +5,8 @@ from torchvision import transforms as T
 
 DATASET_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/dataset"
 
+VIT_WEIGHTS_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/model_weights/vit_base_patch16_384.npz"
+
 
 # Hardware setup: Auto-detect GPU
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -30,7 +32,7 @@ TEST_RATIO = 0.5     # 50% for Testing (Verify this logic relative to the remain
 SEED = 42            # Global random seed
 
 # Image Preprocessing
-IMG_RES = 384
+IMG_SIZE = 384
 MEAN = [0.5, 0.5, 0.5]
 STD = [0.5, 0.5, 0.5]
 
@@ -38,7 +40,7 @@ STD = [0.5, 0.5, 0.5]
 AUGMENTATION_CONFIG = {  
         "basic_transforms": [
                     # Resizing using LANCZOS filter for high-quality downsampling
-                    T.Resize((IMG_RES, IMG_RES), Image.LANCZOS),
+                    T.Resize((IMG_SIZE, IMG_SIZE), Image.LANCZOS),
                     T.ToTensor(),
                     T.Normalize(MEAN, STD)
                 ],
@@ -47,7 +49,7 @@ AUGMENTATION_CONFIG = {
             "supervised": { 
                 "augmentation": True,
                 "augmentation_transforms": [
-                    T.Resize((IMG_RES, IMG_RES), Image.LANCZOS),
+                    T.Resize((IMG_SIZE, IMG_SIZE), Image.LANCZOS),
                     # T.RandomApply([T.ColorJitter(brightness=(1.1, 1.3))], p=0.5),
                     T.RandomHorizontalFlip(p=0.5),
                     # T.RandomVerticalFlip(p=0.5),
@@ -57,7 +59,7 @@ AUGMENTATION_CONFIG = {
             "unsupervised": { 
                 "augmentation": True,
                 "augmentation_transforms": [
-                    T.Resize((IMG_RES, IMG_RES), Image.LANCZOS),
+                    T.Resize((IMG_SIZE, IMG_SIZE), Image.LANCZOS),
                     # T.RandomApply([T.ColorJitter(brightness=(1.1, 1.3))], p=0.5),
                     T.RandomHorizontalFlip(p=0.5),
                     # T.RandomVerticalFlip(p=0.5),

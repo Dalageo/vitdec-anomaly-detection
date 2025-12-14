@@ -34,13 +34,15 @@ class Visualizer:
         ax.axis('off')
 
     
-    def check_data(self, loader, img_batch_info):
-        """Displays images from the data loader."""
+    def display_data(self, loader, num_batches):
+        """Displays images from the first batch of data loader."""
         for i, (images, labels, categories) in enumerate(loader):
-            if i >= img_batch_info:
+            
+            if i >= num_batches:
                 break
-            logger.info(f"Batch {i+1} labels:", labels)
-            logger.info(f"Batch {i+1} categories:", categories)
+            
+            logger.info(f"Batch {i+1} labels: {labels}")
+            logger.info(f"Batch {i+1} categories: {categories}")
 
             # Denormalize the images in the batch before passing to make_grid
             images = torch.stack([self.denormalize(img) for img in images])
