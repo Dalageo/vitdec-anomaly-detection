@@ -24,7 +24,7 @@ class EarlyStop:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf
         self.save_name = "checkpoint.pt"
         self.verbose = True
 

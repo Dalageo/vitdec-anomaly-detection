@@ -315,7 +315,7 @@ class Decoder(nn.Module):
 # ----------------------------------
 class ViTDecoder(nn.Module):
     def __init__(self, vit_encoder, decoder):
-        super(ViTDecoder, self).__init__()
+        super().__init__()
         self.vit_encoder = vit_encoder
         self.decoder = decoder
         
@@ -345,8 +345,8 @@ class ViTDecoder(nn.Module):
     
     
     # Test both the Vit and decoder model
-    def test_models(self):
-        """Test the forward pass with dummy data."""
+    def dry_run(self):
+        """Executes a single forward pass with dummy data to verify execution."""
 
         # Generate a dummy input tensor based on the image resolution and model input format
         device = next(self.parameters()).device
@@ -368,7 +368,7 @@ class ViTDecoder(nn.Module):
 # -----------------------------
 # Get ViTDecoder Model Function
 # -----------------------------
-def get_vitdec():
+def get_vitdec(dry_run: bool=False):
     # Initialize the Vision Transformer
     vit_encoder = VisionTransformer(
         img_size=IMG_SIZE,  
@@ -398,6 +398,9 @@ def get_vitdec():
     
     # Combine the Vision Transformer and Decoder into a single model, and transfer it to the device
     vit_dec = ViTDecoder(vit_encoder, decoder).to(DEVICE)
+    
+    if dry_run:
+        vit_dec.dry_run()
     
     # Return the model
     return vit_dec
