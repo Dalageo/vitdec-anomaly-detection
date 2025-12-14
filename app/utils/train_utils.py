@@ -24,8 +24,8 @@ class EarlyStop:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
-        self.save_name = "checkpoint.pt"
+        self.val_loss_min = np.inf
+        self.save_name = "checkpoints/checkpoint.pt"
         self.verbose = True
 
     def __call__(self, class_loss, recon_loss, model):
@@ -203,7 +203,10 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
         
-        logger.info(f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}', self.log)
+        log_msg = f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
+        logger.info(log_msg)
+        print_log(log_msg, self.log)
+        
         return avg_loss, avg_recon_loss, avg_cls_loss
 
 
@@ -219,9 +222,9 @@ class ViTDecTrainer:
         total_recon_samples = 0
         total_cls_samples = 0
         
+        last_original = None
         last_recon = None
-        last_x = None
-
+    
         for (x, y, _) in tqdm(self.val_loader):
             x = x.to(self.device)
             y = y.to(self.device)
@@ -244,8 +247,8 @@ class ViTDecTrainer:
                     total_recon_samples += count
                     
                     # Save images for plotting
+                    last_original = x[recon_mask]
                     last_recon = recon_output
-                    last_x = x[recon_mask]
                     
                 # Classification Logic (Normal + Anomaly)
                 cls_mask = normal_mask | anomaly_mask
@@ -263,10 +266,10 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
 
-               
-        if epoch % 1 == 0 and last_recon is not None:
-            self.visualizer.plot_show(last_recon, last_x, epoch)
-
+        if last_recon is not None and epoch % 2 == 0:
+            save_plot = (epoch % 5 == 0)
+            self.visualizer.plot_show(last_original, last_recon, epoch, save_plot=save_plot)
+                
         # Print learning rate for optimizer_vit
         for i, param_group in enumerate(self.optimizer_vit.param_groups):
             logger.info(f'Valid Epoch {epoch}: Learning Rate for Transformer: {param_group["lr"]:.6f}')
@@ -276,6 +279,7 @@ class ViTDecTrainer:
             logger.info(f'Valid Epoch {epoch}: Learning Rate for Decoder: {param_group["lr"]:.6f}')
 
         log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
+        logger.info(log_msg)
         print_log(log_msg, self.log)
 
         return avg_loss, avg_recon_loss, avg_cls_loss

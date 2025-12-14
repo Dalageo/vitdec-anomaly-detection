@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument('--val_ratio',      type=float,                 default=0.15)
     parser.add_argument('--test_ratio',     type=float,                 default=0.5)
     parser.add_argument('--batch_size',     type=int,                   default=16,                 help='Batch size for training')
-    parser.add_argument('--img_res',        type=int,                   default=384)
+    parser.add_argument('--IMG_SIZE',        type=int,                   default=384)
     parser.add_argument('--img_batch_info', type=int,                   default=0)
     parser.add_argument('--data_info',      action='store_true',                                    help='Print dataset info')
     parser.add_argument('--mean',           type=float, nargs=3,        default=[0.5, 0.5, 0.5])

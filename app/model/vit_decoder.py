@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
 from functools import partial
+from collections import OrderedDict
+from app.utils.log_utils import LoggerConfig
+from app.config import IMG_SIZE, VIT_WEIGHTS_PATH, DEVICE
 from app.model.weights import load_weights, initialize_weights
 
+logger = LoggerConfig().get_logger(__name__)
 
 # -------------------------
 # Tuple Conversion Function
@@ -94,6 +98,27 @@ class Attention(nn.Module):
         return x
 
 
+# ---------
+# Drop Path
+# ---------
+class DropPath(nn.Module):
+    """Drop paths (Stochastic Depth) per sample."""
+    def __init__(self, drop_prob=None):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        if self.drop_prob == 0. or not self.training:
+            return x
+        keep_prob = 1 - self.drop_prob
+        # Work with any number of dimensions, not just 4D tensors
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()  # binarize
+        output = x.div(keep_prob) * random_tensor
+        return output
+    
+    
 # ----------------
 # Transformer Block
 # ----------------
@@ -103,7 +128,6 @@ class Block(nn.Module):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
-        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
@@ -123,6 +147,7 @@ class VisionTransformer(nn.Module):
                  num_heads=12, mlp_ratio=4., qkv_bias=True, representation_size=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0., embed_layer=PatchEmbed, norm_layer=None,
                  act_layer=None):
+        
         super().__init__()
         self.num_classes = num_classes
         self.embed_dim = embed_dim
@@ -186,9 +211,9 @@ class VisionTransformer(nn.Module):
 # Decoder Model
 # -------------
 class Decoder(nn.Module):
-    def __init__(self, args):
+    def __init__(self):
         super(Decoder, self).__init__()
-        self.args = args
+        self.img_size = IMG_SIZE
         self.dec_block1 = nn.Sequential(
             # Input: [1, 768, 24, 24]
             nn.ConvTranspose2d(768, 384, (3, 3)), # Expanding informations to larger size (upsample increasing width and height) 
@@ -254,7 +279,7 @@ class Decoder(nn.Module):
         )
         
         # Input: [1, 3, 279, 279]
-        self.up = nn.UpsamplingBilinear2d((args.img_res,args.img_res)) # A final upsample to ensure that the output matches the desire dimension (384,384)
+        self.up = nn.UpsamplingBilinear2d((self.img_size, self.img_size)) # A final upsample to ensure that the output matches the desire dimension (384,384)
         # Output: [1, 3, 384, 384]
         self.tanh = nn.Tanh() # Scale the output to be -1 to 1
 
@@ -290,22 +315,18 @@ class Decoder(nn.Module):
 # ----------------------------------
 class ViTDecoder(nn.Module):
     def __init__(self, vit_encoder, decoder):
-        super(ViTDecoder, self).__init__()
+        super().__init__()
         self.vit_encoder = vit_encoder
         self.decoder = decoder
-
+        
+        # Load the model weights
+        self.weights = load_weights(vit_encoder, VIT_WEIGHTS_PATH)
+        
+        self.img_size = IMG_SIZE
+        
     def forward(self, x, return_logits=False, return_reconstruction=True):
-        """
-        Forward pass of the ViTDecoder module.
+        """Forward pass of the ViTDecoder module."""
         
-        Args:
-            x (tensor): Input data to the model.
-            return_logits (bool): Flag to determine if logits should be returned.
-            return_reconstruction (bool): Flag to determine if reconstruction should be returned.
-        
-        Returns:
-            tuple: A tuple containing the cls_token_logits and/or reconstructed_output based on the flags.
-        """
         # Pass the input x to the transformer(vit_encoder) and optionally retrieve the logits
         if return_logits:
             cls_token_logits, features_output = self.vit_encoder(x, include_cls_token=True)
@@ -321,46 +342,36 @@ class ViTDecoder(nn.Module):
 
         # Return the requested outputs
         return cls_token_logits, reconstructed_output
-
-
-# -----------------------
-# Model Output Test Class
-# -----------------------
-class ModelTester:
-    def __init__(self, vit_model, decoder_model, device):
-        self.vit_model = vit_model
-        self.decoder_model = decoder_model
-        self.device = device
-
-    # Generate a dummy input tensor based on the image resolution and model input format
-    def generate_dummy_input(self, img_res):
-        dummy_input = torch.randn(1, 3, img_res, img_res)
-        return dummy_input.to(self.device)
-
+    
+    
     # Test both the Vit and decoder model
-    def test_models(self, img_res):
-        dummy_input = self.generate_dummy_input(img_res)
+    def dry_run(self):
+        """Executes a single forward pass with dummy data to verify execution."""
+
+        # Generate a dummy input tensor based on the image resolution and model input format
+        device = next(self.parameters()).device
+        dummy_input = torch.randn(1, 3, self.img_size, self.img_size).to(device)
 
         # Pass the dummy input through the vision transformer model
-        logits, features_output = self.vit_model(dummy_input, include_cls_token=True)
+        logits, features_output = self.vit_encoder(dummy_input, include_cls_token=True)
+        
         # Pass the features output through the decoder model
-        decoded_image = self.decoder_model(features_output)
+        decoded_image = self.decoder(features_output)
 
-        print("\n---------- Vision Transformer Test Output ----------")
-        print("Classification Logits Output Shape (for Classification):", logits.shape)
-        print("Features Output Shape (for Decoder Input):", features_output.shape)
-        print("\n---------- Decoder Test Output ----------")
-        print("Output Image Shape (Reconstructed from Features):", decoded_image.shape)
-        print("\n")
-
-
-# -----------------------
-# Script's main operation
-# -----------------------
-def vitdec_init(args):
+        logger.info("---------- Vision Transformer Test Output ----------")
+        logger.info(f"Classification Logits Output Shape (for Classification): {logits.shape}")
+        logger.info(f"Features Output Shape (for Decoder Input): {features_output.shape}")
+        logger.info("---------- Decoder Test Output ----------")
+        logger.info(f"Output Image Shape (Reconstructed from Features): {decoded_image.shape}")
+    
+    
+# -----------------------------
+# Get ViTDecoder Model Function
+# -----------------------------
+def get_vitdec(dry_run: bool=False):
     # Initialize the Vision Transformer
     vit_encoder = VisionTransformer(
-        img_size=args.img_res,  
+        img_size=IMG_SIZE,  
         patch_size=16,
         in_chans=3,
         num_classes=1000,  
@@ -372,29 +383,24 @@ def vitdec_init(args):
         # attn_drop_rate=0.5,  # This needs to be passed to the Block for attention dropout
     )
 
-    # Load the model weights
-    if args.vit_weights:
-        load_weights(vit_encoder, args.vit_weights)
-        
     # Change the classifier head for the classification task
-    vit_encoder.head = nn.Linear(vit_encoder.head.in_features, args.num_classes) 
+    num_classes = 2
+    vit_encoder.head = nn.Linear(vit_encoder.head.in_features, num_classes) 
     # Move it to device
-    vit_encoder.to(args.device)
+    vit_encoder.to(DEVICE)
     
     # Initialize the Decoder
-    decoder = Decoder(args) 
+    decoder = Decoder() 
     # Set its weights 
     initialize_weights(decoder)
-     # Move it to device
-    decoder.to(args.device)
-        
-    # If the test argument is set, test the model output
-    if args.output_test:
-        tester = ModelTester(vit_encoder, decoder, args.device)
-        tester.test_models(args.img_res)
-        
+    # Move it to device
+    decoder.to(DEVICE)
+    
     # Combine the Vision Transformer and Decoder into a single model, and transfer it to the device
-    vit_dec = ViTDecoder(vit_encoder, decoder).to(args.device)
+    vit_dec = ViTDecoder(vit_encoder, decoder).to(DEVICE)
+    
+    if dry_run:
+        vit_dec.dry_run()
     
     # Return the model
     return vit_dec
