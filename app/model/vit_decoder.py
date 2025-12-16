@@ -218,7 +218,8 @@ class Decoder(nn.Module):
             # Input: [1, 768, 24, 24]
             nn.ConvTranspose2d(768, 384, (3, 3)), # Expanding informations to larger size (upsample increasing width and height) 
             nn.InstanceNorm2d(384), # Normalizing the output feature maps
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 384, 26, 26]
         )
         
@@ -226,7 +227,8 @@ class Decoder(nn.Module):
             # Input: [1, 384, 26, 26]
             nn.ConvTranspose2d(384, 192, (3, 3)), 
             nn.InstanceNorm2d(192),
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 192, 28, 28]
         )
         
@@ -234,7 +236,8 @@ class Decoder(nn.Module):
             # Input: [1, 192, 28, 28]
             nn.ConvTranspose2d(192, 96, (3, 3)), 
             nn.InstanceNorm2d(96),
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 96, 30, 30]
         )
 
@@ -242,7 +245,8 @@ class Decoder(nn.Module):
             # Input: [1, 96, 30, 30]
             nn.ConvTranspose2d(96, 48, (3, 3)),
             nn.InstanceNorm2d(48),
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 48, 32, 32]
         )
 
@@ -250,7 +254,8 @@ class Decoder(nn.Module):
             # Input: [1, 48, 32, 32]
             nn.ConvTranspose2d(48, 24, (3, 3)),
             nn.InstanceNorm2d(24),
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 24, 34, 34]
         )
 
@@ -258,7 +263,8 @@ class Decoder(nn.Module):
             # Input: [1, 24, 34, 34]
             nn.ConvTranspose2d(24, 12, (3, 3), stride=2, padding=1),
             nn.InstanceNorm2d(12),
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 12, 69, 69]
         )
 
@@ -266,7 +272,8 @@ class Decoder(nn.Module):
             # Input: [1, 12, 69, 69]
             nn.ConvTranspose2d(12, 6, (3, 3), stride=2, padding=1),
             nn.InstanceNorm2d(6),
-            nn.ReLU(True)
+            # nn.ReLU(True)
+            nn.LeakyReLU(0.2, True)
             # Output: [1, 6, 139, 139]
         )
 
@@ -274,7 +281,7 @@ class Decoder(nn.Module):
             # Input: [1, 6, 139, 139]
             nn.ConvTranspose2d(6, 3, (3, 3), stride=2, padding=1),
             nn.InstanceNorm2d(3),
-            nn.ReLU(True)
+            # nn.ReLU(True)
             # Output: [1, 3, 279, 279]
         )
         
@@ -358,10 +365,10 @@ class ViTDecoder(nn.Module):
         # Pass the features output through the decoder model
         decoded_image = self.decoder(features_output)
 
-        logger.info("---------- Vision Transformer Test Output ----------")
+        logger.info("Vision Transformer Test Output:")
         logger.info(f"Classification Logits Output Shape (for Classification): {logits.shape}")
         logger.info(f"Features Output Shape (for Decoder Input): {features_output.shape}")
-        logger.info("---------- Decoder Test Output ----------")
+        logger.info("Decoder Test Output:")
         logger.info(f"Output Image Shape (Reconstructed from Features): {decoded_image.shape}")
     
     

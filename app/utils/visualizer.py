@@ -96,7 +96,7 @@ class Visualizer:
         plt.close(fig)
         
      
-    def plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses):
+    def plot_loss(self, train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses):
         """Plot training and validation loss curves for total, classification, and reconstruction losses."""
 
         plt.figure(figsize=(15, 5))
