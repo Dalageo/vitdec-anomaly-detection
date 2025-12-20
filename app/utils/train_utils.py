@@ -90,7 +90,8 @@ class ViTDecTrainer:
         self.amp = AMP
         
         # Loss Functions & Tools
-        self.mse = nn.MSELoss()
+        # self.mse = nn.MSELoss()
+        self.mse = nn.L1Loss()
         self.cross_entropy = nn.CrossEntropyLoss()
         self.scaler = torch.amp.GradScaler(enabled=AMP) 
         self.early_stop = EarlyStop(patience=5, delta=0.001)
@@ -190,8 +191,17 @@ class ViTDecTrainer:
             if (recon_mask.any() or cls_mask.any()):
                 if self.amp:
                     self.scaler.scale(total_loss).backward()
+                    
+                    # Only unscale and step optimizers that have gradients
+                    # ViT encoder always gets gradients (used in both tasks)
+                    self.scaler.unscale_(self.optimizer_vit)
                     self.scaler.step(self.optimizer_vit)
-                    self.scaler.step(self.optimizer_dec)
+                    
+                    # Decoder only gets gradients from reconstruction
+                    if recon_mask.any():
+                        self.scaler.unscale_(self.optimizer_dec)
+                        self.scaler.step(self.optimizer_dec)
+                        
                     self.scaler.update()
                 else:
                     total_loss.backward()
@@ -205,7 +215,6 @@ class ViTDecTrainer:
         
         log_msg = f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
         logger.info(log_msg)
-        print_log(log_msg, self.log)
         
         return avg_loss, avg_recon_loss, avg_cls_loss
 
@@ -266,7 +275,7 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
 
-        if last_recon is not None and epoch % 2 == 0:
+        if last_recon is not None and epoch % 1 == 0:
             save_plot = (epoch % 5 == 0)
             self.visualizer.plot_show(last_original, last_recon, epoch, save_plot=save_plot)
                 
@@ -280,7 +289,6 @@ class ViTDecTrainer:
 
         log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
         logger.info(log_msg)
-        print_log(log_msg, self.log)
 
         return avg_loss, avg_recon_loss, avg_cls_loss
 
