@@ -276,7 +276,7 @@ class ViTDecTrainer:
         avg_loss = avg_recon_loss + avg_cls_loss
 
         if last_recon is not None and epoch % 1 == 0:
-            save_plot = (epoch % 5 == 0)
+            save_plot = (epoch % 1 == 0)
             self.visualizer.plot_show(last_original, last_recon, epoch, save_plot=save_plot)
                 
         # Print learning rate for optimizer_vit
