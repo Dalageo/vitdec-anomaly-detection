@@ -1,13 +1,15 @@
-
+import os
 import torch
 from PIL import Image
 from torchvision import transforms as T
 
-DATASET_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/dataset"
-VIT_WEIGHTS_PATH = "/home/dalageo/Github-Personal-Projects/vit-dec-anomaly-detection/model_weights/vit_base_patch16_384.npz"
-PLOT_OUTPUT_PATH = "app/checkpoints/training_curves.png"
-LOG_OUTPUT_PATH = "app/checkpoints/training_log.txt"
-CHECKPOINT_PATH = "app/checkpoints/checkpoint.pt"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLOT_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'training_curves.png')
+LOG_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'training_log.txt')
+CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'checkpoint.pt')
+
+DATASET_PATH = os.path.join(PROJECT_ROOT, 'dataset')
+VIT_WEIGHTS_PATH = os.path.join(PROJECT_ROOT, 'model_weights', 'vit_base_patch16_384.npz')
 
 # Auto-detect GPU
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

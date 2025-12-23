@@ -82,8 +82,9 @@ class ViTDecTrainer:
         self.visualizer = Visualizer()
         
         # System & Logging Setup
-        os.makedirs(LOG_OUTPUT_PATH, exist_ok=True)
-        self.log_path = os.path.join(LOG_OUTPUT_PATH)
+        log_dir = os.path.dirname(LOG_OUTPUT_PATH)
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_path = LOG_OUTPUT_PATH
         self.log = open(self.log_path, 'w', buffering=1)
         self.checkpoint_path = CHECKPOINT_PATH
         self.device = DEVICE
