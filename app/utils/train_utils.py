@@ -6,7 +6,7 @@ from tqdm import tqdm
 import torch.nn as nn
 from app.utils.visualizer import Visualizer
 from app.utils.log_utils import LoggerConfig
-from app.utils.log_utils import AverageMeter, print_log, convert_secs2time
+from app.utils.log_utils import AverageMeter, convert_secs2time
 from app.config import MEAN, STD, \
                        EPOCHS, BATCH_SIZE, DEVICE, \
                        AMP, BETA_1, BETA_2, \
@@ -84,8 +84,6 @@ class ViTDecTrainer:
         # System & Logging Setup
         log_dir = os.path.dirname(LOG_OUTPUT_PATH)
         os.makedirs(log_dir, exist_ok=True)
-        self.log_path = LOG_OUTPUT_PATH
-        self.log = open(self.log_path, 'w', buffering=1)
         self.checkpoint_path = CHECKPOINT_PATH
         self.device = DEVICE
         
@@ -114,10 +112,6 @@ class ViTDecTrainer:
         # Initialize Training Components
         self.get_train_components()
     
-    def __del__(self):
-        """Ensures the log file is closed when the trainer instance is deleted"""
-        if self.log:
-            self.log.close()
         
     # ---------------------------------------
     # Optimizers and scheduler initialization 
@@ -355,7 +349,7 @@ class ViTDecTrainer:
             need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (self.epochs - epoch))
             need_time = f'[Need: {need_hour:02d}:{need_mins:02d}:{need_secs:02d}]'
             log_msg = f' {epoch:3d}/{self.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}'
-            print_log(log_msg, self.log)
+            logger.info(log_msg)
             
             # Receive detailed losses from training
             train_loss, train_recon_loss, train_cls_loss = self.train_epoch(epoch)
@@ -373,7 +367,7 @@ class ViTDecTrainer:
             if self.early_stop(val_cls_loss, val_recon_loss, self.model, epoch, 
                           self.optimizer_vit, self.optimizer_dec, self.scheduler):
                 log_msg = "Training stopped early due to lack of improvement."
-                print_log(log_msg, self.log)
+                logger.info(log_msg)
                 break
 
             # Step the scheduler with the validation loss

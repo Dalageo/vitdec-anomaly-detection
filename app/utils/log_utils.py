@@ -1,6 +1,7 @@
 import sys
 import time
 import logging
+from app.config import LOG_OUTPUT_PATH
 
 
 # ------------
@@ -9,6 +10,7 @@ import logging
 class LoggerConfig:
     def __init__(self):
         self.log_level = "INFO"
+        self.log_file = LOG_OUTPUT_PATH
 
     def get_logger(self, name: str) -> logging.Logger:
         """Configures and returns a logger with a specified name."""
@@ -21,8 +23,15 @@ class LoggerConfig:
         console_handler = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter("%(levelname)s - %(name)s - %(message)s")
         console_handler.setFormatter(formatter)
-        
         logger.addHandler(console_handler)
+        
+        if self.log_file:
+            import os
+            os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
+            file_handler = logging.FileHandler(self.log_file, mode='a')
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
         logger.setLevel(level_int)
         logger.propagate = False
         
@@ -67,9 +76,3 @@ def convert_secs2time(epoch_time):
     need_mins = int((epoch_time - 3600 * need_hour) / 60)
     need_secs = int(epoch_time - 3600 * need_hour - 60 * need_mins)
     return need_hour, need_mins, need_secs
-
-def print_log(print_string, log):
-    """Prints the message to the console and writes it to the log file."""
-    print("{:}".format(print_string))
-    log.write('{:}\n'.format(print_string))
-    log.flush()
