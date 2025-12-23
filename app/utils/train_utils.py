@@ -94,7 +94,7 @@ class ViTDecTrainer:
         self.mse = nn.L1Loss()
         self.cross_entropy = nn.CrossEntropyLoss()
         self.scaler = torch.amp.GradScaler(enabled=AMP) 
-        self.early_stop = EarlyStop(patience=5, delta=0.001)
+        self.early_stop = EarlyStop(patience=5, delta=0.00001)
         
         # Initialize Training Components
         self.get_train_components()
