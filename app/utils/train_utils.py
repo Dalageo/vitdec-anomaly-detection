@@ -10,7 +10,8 @@ from app.utils.log_utils import AverageMeter, print_log, convert_secs2time
 from app.config import MEAN, STD, \
                        EPOCHS, BATCH_SIZE, DEVICE, \
                        AMP, BETA_1, BETA_2, \
-                       LR_VIT, LR_DEC, WD_VIT, WD_DEC \
+                       LR_VIT, LR_DEC, WD_VIT, WD_DEC, \
+                       LOG_OUTPUT_PATH, CHECKPOINT_PATH
                        
 logger = LoggerConfig().get_logger(__name__)
 
@@ -25,10 +26,10 @@ class EarlyStop:
         self.best_score = None
         self.early_stop = False
         self.val_loss_min = np.inf
-        self.save_name = "checkpoints/checkpoint.pt"
+        self.checkpoint_path = CHECKPOINT_PATH
         self.verbose = True
 
-    def __call__(self, class_loss, recon_loss, model):
+    def __call__(self, class_loss, recon_loss, model, epoch=0, optimizer_vit=None, optimizer_dec=None, scheduler=None):
         overall_loss = class_loss + recon_loss
         
         # Check if the new loss is significantly better
@@ -36,7 +37,7 @@ class EarlyStop:
             if self.verbose:
                 logger.info(f"Overall loss decreased ({self.val_loss_min:.6f} --> {overall_loss:.6f}). Saving model...")
                 
-            self.save_checkpoint(model)
+            self.save_checkpoint(model, epoch, optimizer_vit, optimizer_dec, scheduler)
             self.val_loss_min = overall_loss 
             self.counter = 0
         else:
@@ -51,9 +52,22 @@ class EarlyStop:
 
         return False
 
-    def save_checkpoint(self, model):
+    def save_checkpoint(self, model, epoch=0, optimizer_vit=None, optimizer_dec=None, scheduler=None):
         """ Saves model when validation loss decrease. """
-        torch.save(model.state_dict(), self.save_name)
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'val_loss': self.val_loss_min,
+        }
+        
+        if optimizer_vit is not None:
+            checkpoint['optimizer_vit_state_dict'] = optimizer_vit.state_dict()
+        if optimizer_dec is not None:
+            checkpoint['optimizer_dec_state_dict'] = optimizer_dec.state_dict()
+        if scheduler is not None:
+            checkpoint['scheduler_state_dict'] = scheduler.state_dict()
+        
+        torch.save(checkpoint, self.checkpoint_path)
         logger.info("Model saved")
         
         
@@ -68,10 +82,10 @@ class ViTDecTrainer:
         self.visualizer = Visualizer()
         
         # System & Logging Setup
-        self.save_dir = "app/checkpoints/"
-        os.makedirs(self.save_dir, exist_ok=True)
-        self.log_path = os.path.join(self.save_dir, 'training_log.txt')
-        self.log = open(self.log_path, 'w')
+        os.makedirs(LOG_OUTPUT_PATH, exist_ok=True)
+        self.log_path = os.path.join(LOG_OUTPUT_PATH)
+        self.log = open(self.log_path, 'w', buffering=1)
+        self.checkpoint_path = CHECKPOINT_PATH
         self.device = DEVICE
         
         # Data & Training Hyperparameters
@@ -131,6 +145,30 @@ class ViTDecTrainer:
             patience=2
         )
 
+
+    def load_checkpoint(self):
+        """Load model checkpoint and optimizer states to resume training"""
+        
+        if not os.path.exists(self.checkpoint_path):
+            logger.warning(f"Checkpoint not found at {self.checkpoint_path}")
+            return 0
+        
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        
+        # Load model state
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        start_epoch = checkpoint.get('epoch', 0) + 1
+        
+        # Load optimizer states
+        if 'optimizer_vit_state_dict' in checkpoint:
+            self.optimizer_vit.load_state_dict(checkpoint['optimizer_vit_state_dict'])
+        if 'optimizer_dec_state_dict' in checkpoint:
+            self.optimizer_dec.load_state_dict(checkpoint['optimizer_dec_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            
+        logger.info(f"Loaded checkpoint from epoch {checkpoint.get('epoch', 0)}")
+        return start_epoch
 
     # --------------------------------------
     # Training operations for a single epoch
@@ -296,7 +334,7 @@ class ViTDecTrainer:
     # --------------------------
     # Executes training workflow
     # --------------------------
-    def train(self):
+    def train(self, resume=False):
         # Set up time tracking
         start_time = time.time()
         epoch_time = AverageMeter()
@@ -305,8 +343,13 @@ class ViTDecTrainer:
         train_total_losses, train_recon_losses, train_cls_losses = [], [], []
         val_total_losses, val_recon_losses, val_cls_losses = [], [], []
 
+        # Resume training if needed
+        start_epoch = 1
+        if resume:
+            start_epoch = self.load_checkpoint()
+        
         # Main training loop
-        for epoch in range(1, self.epochs + 1):
+        for epoch in range(start_epoch, self.epochs + 1):
             # Estimate time remaining
             need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (self.epochs - epoch))
             need_time = f'[Need: {need_hour:02d}:{need_mins:02d}:{need_secs:02d}]'
@@ -326,7 +369,8 @@ class ViTDecTrainer:
             val_cls_losses.append(val_cls_loss)
 
             # Early stopping checks against total validation loss
-            if self.early_stop(val_cls_loss, val_recon_loss, self.model):
+            if self.early_stop(val_cls_loss, val_recon_loss, self.model, epoch, 
+                          self.optimizer_vit, self.optimizer_dec, self.scheduler):
                 log_msg = "Training stopped early due to lack of improvement."
                 print_log(log_msg, self.log)
                 break

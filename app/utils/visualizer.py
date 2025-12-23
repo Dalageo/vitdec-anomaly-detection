@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from torchvision import utils
 import matplotlib.pyplot as plt
-from app.config import MEAN, STD
+from app.config import MEAN, STD, PLOT_OUTPUT_PATH
 from app.utils.log_utils import LoggerConfig
 
 logger = LoggerConfig().get_logger(__name__)
@@ -132,4 +132,5 @@ class Visualizer:
         plt.grid(True)
 
         plt.tight_layout()
+        plt.savefig(PLOT_OUTPUT_PATH)
         plt.show()
