@@ -42,7 +42,6 @@ class Mlp(nn.Module):
 # ----------------------
 class PatchEmbed(nn.Module):
     """ 2D Image to Patch Embedding"""
-    
     def __init__(self, img_size=384, patch_size=16, in_chans=3, embed_dim=768, norm_layer=None, flatten=True):
         super().__init__()
         img_size = to_2tuple(img_size)
