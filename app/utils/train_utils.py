@@ -177,7 +177,7 @@ class ViTDecTrainer:
         total_recon_samples = 0
         total_cls_samples = 0
 
-        for (x, y, _) in tqdm(self.train_loader):
+        for (x, y, _) in tqdm(self.train_loader, desc="Training"):
             x = x.to(self.device)
             y = y.to(self.device)
 
@@ -267,7 +267,7 @@ class ViTDecTrainer:
         last_original = None
         last_recon = None
     
-        for (x, y, _) in tqdm(self.val_loader):
+        for (x, y, _) in tqdm(self.val_loader, desc="Evaluating"):
             x = x.to(self.device)
             y = y.to(self.device)
 

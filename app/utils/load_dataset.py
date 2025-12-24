@@ -9,7 +9,7 @@ from torchvision import transforms as T
 from app.utils.log_utils import LoggerConfig
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
-from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
+from app.config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
 
 logger = LoggerConfig().get_logger(__name__)
 
