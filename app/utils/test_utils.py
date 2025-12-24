@@ -5,15 +5,17 @@ Evaluating the model using ROC AUC score which measures the model's ability to d
 
 - **Segmentation scores** provide a detailed map of anomaly likelihood across an image, useful for precisely locating anomalies
 """
+import os
 import torch
 import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
+from app.config import DEVICE, VIT_CHECKPOINT_PATH
 import torch.nn.functional as F
 from scipy.ndimage import gaussian_filter
 
 
-def get_bound_results(model, test_loader, device, apply_gaussian=False):
+def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     model.eval()
     MSE = nn.MSELoss(reduction='none')
     
@@ -24,7 +26,7 @@ def get_bound_results(model, test_loader, device, apply_gaussian=False):
     probs_list = []  
 
     with torch.no_grad():
-        for (x, label, _) in tqdm(test_loader, desc="Testing"):
+        for (x, label, _) in tqdm(bound_loader, desc="Testing"):
             x = x.to(device)
             label = label.to(device)
             
@@ -66,10 +68,4 @@ def get_bound_results(model, test_loader, device, apply_gaussian=False):
         'recon_imgs': np.array(recon_imgs),                 # Reconstructed images
         'probs_list': np.concatenate(probs_list, axis=0) 
      }
-    
-    
-if __name__ == "__main__":
-    
-    
-    bound_results = get_bound_results()
     

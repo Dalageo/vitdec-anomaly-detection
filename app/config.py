@@ -9,6 +9,7 @@ LOG_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'training_log
 CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'checkpoint.pt')
 
 DATASET_PATH = os.path.join(PROJECT_ROOT, 'dataset')
+VIT_CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', '24_12_run', 'checkpoint.pt')
 VIT_WEIGHTS_PATH = os.path.join(PROJECT_ROOT, 'model_weights', 'vit_base_patch16_384.npz')
 
 # Auto-detect GPU

@@ -310,7 +310,7 @@ class ViTDecTrainer:
 
         if last_recon is not None and epoch % 1 == 0:
             save_plot = (epoch % 1 == 0)
-            self.visualizer.plot_show(last_original, last_recon, epoch, save_plot=save_plot)
+            self.visualizer.display_reconstruction(last_original, last_recon, epoch, save_plot=save_plot)
                 
         # Print learning rate for optimizer_vit
         for i, param_group in enumerate(self.optimizer_vit.param_groups):
@@ -378,4 +378,5 @@ class ViTDecTrainer:
             start_time = time.time()
 
         # Plot training and validation losses.
-        self.visualizer.plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses)
+        self.visualizer.plot_learning_curves(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, 
+                                             train_recon_losses, val_recon_losses, save_plot=True)

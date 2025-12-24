@@ -1,6 +1,7 @@
 import os
 import torch
 import numpy as np
+import seaborn as sns
 from torchvision import utils
 import matplotlib.pyplot as plt
 from app.config import MEAN, STD, PLOT_OUTPUT_PATH
@@ -15,6 +16,8 @@ class Visualizer:
     def __init__(self):
         self.mean = MEAN
         self.std = STD
+        
+        self.plot_output_path = PLOT_OUTPUT_PATH
 
     # Denormalize a tensor image
     def denormalize(self, tensor):
@@ -63,8 +66,8 @@ class Visualizer:
             plt.show()
 
 
-    def plot_show(self, original_img, recon_img, epoch, save_plot: bool = False):
-        """Plot and show original and reconstructed images side-by-side."""
+    def display_reconstruction(self, original_img, recon_img, epoch, save_plot: bool = False):
+        """Visualizes the first image of the batch alongside its reconstruction."""
         
         # Denormalize and prepare the first image in the batch for display
         orginal_denorm = self.denormalize(original_img[0]).clamp(0, 1).detach().cpu().numpy()
@@ -96,41 +99,68 @@ class Visualizer:
         plt.close(fig)
         
      
-    def plot_loss(self, train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses):
+    def plot_learning_curves(self, train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, 
+                             train_recon_losses, val_recon_losses, save_plot=False):
         """Plot training and validation loss curves for total, classification, and reconstruction losses."""
 
-        plt.figure(figsize=(15, 5))
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+        epochs = range(1, len(train_total_losses) + 1)
         
-        # Plotting total loss
-        plt.subplot(1, 3, 1)
-        plt.plot(train_total_losses, label='Training Total Loss')
-        plt.plot(val_total_losses, label='Validation Total Loss')
-        plt.title('Total Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.grid(True)
+        def plot_subplot(ax, train_data, val_data, title):
+            ax.plot(epochs, train_data, label='Training', color='tab:blue')
+            ax.plot(epochs, val_data, label='Validation', color='tab:orange', linestyle='--')
+            ax.set_title(title, fontsize=12, fontweight='bold')
+            ax.set_xlabel('Epochs')
+            ax.set_ylabel('Loss')
+            ax.legend()
+            ax.grid(True, linestyle='--', alpha=0.7)
+        
+        # Total Loss
+        plot_subplot(axes[0], train_total_losses, val_total_losses, 'Total Loss')
 
-        # Plotting Classification loss
-        plt.subplot(1, 3, 2)
-        plt.plot(train_cls_losses, label='Training Classification Loss')
-        plt.plot(val_cls_losses, label='Validation Classification Loss')
-        plt.title('Classification Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.grid(True)
+        # Classification Loss
+        plot_subplot(axes[1], train_cls_losses, val_cls_losses, 'Classification Loss')
 
-        # Plotting Reconstruction loss
-        plt.subplot(1, 3, 3)
-        plt.plot(train_recon_losses, label='Training Reconstruction Loss')
-        plt.plot(val_recon_losses, label='Validation Reconstruction Loss')
-        plt.title('Reconstruction Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend(loc='upper right')  
-        plt.grid(True)
+        # Reconstruction Loss
+        plot_subplot(axes[2], train_recon_losses, val_recon_losses, 'Reconstruction Loss')
 
         plt.tight_layout()
-        plt.savefig(PLOT_OUTPUT_PATH)
+        
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+        
         plt.show()
+        plt.close(fig)
+        
+        
+    def plot_anomaly_score_distribution(self, det_scores, gt_list, save_plot=None):
+        """Plots the histogram and KDE (Kernel Density Estimate) of anomaly scores 
+        for Normal vs. Anomalous classes."""
+        
+        plt.figure(figsize=(10, 6))
+
+        # Split scores by class
+        normal_scores = det_scores[gt_list == 0]
+        anomalous_scores = det_scores[gt_list == 1]
+
+        # Plot Normal Scores
+        sns.histplot(normal_scores, bins=30, kde=(len(np.unique(normal_scores)) > 1), 
+                     label='Normal', color='blue', alpha=0.6)
+
+        # Plot Anomalous Scores
+        sns.histplot(anomalous_scores, bins=30, kde=(len(np.unique(anomalous_scores)) > 1), 
+                     label='Anomalous', color='red', alpha=0.6)
+
+        plt.xlabel('Anomaly Score')
+        plt.ylabel('Count') 
+        plt.title('Distribution of Anomaly Scores')
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.5)
+
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+            
+        plt.show()
+        plt.close()
