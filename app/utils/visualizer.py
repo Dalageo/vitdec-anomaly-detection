@@ -143,6 +143,14 @@ class Visualizer:
         # Split scores by class
         normal_scores = det_scores[gt_list == 0]
         anomalous_scores = det_scores[gt_list == 1]
+        
+        logger.info(f"Anomaly Reconstruction Scores")
+        logger.info(f"Minimum Anomaly Score: {anomalous_scores.min()}")
+        logger.info(f"Maximum Anomaly Score: {anomalous_scores.max()} \n")
+
+        logger.info(f"Normal Reconstruction Scores")
+        logger.info(f"Minimum Normal Score: {normal_scores.min()}")
+        logger.info(f"Maximum Normal Score: {normal_scores.max()}")
 
         # Plot Normal Scores
         sns.histplot(normal_scores, bins=30, kde=(len(np.unique(normal_scores)) > 1), 
