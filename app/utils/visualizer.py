@@ -1,11 +1,14 @@
 import os
 import torch
+import operator
 import numpy as np
 import seaborn as sns
-from torchvision import utils
+from torchvision import utils as torchvision_utils
 import matplotlib.pyplot as plt
-from app.config import MEAN, STD, PLOT_OUTPUT_PATH
 from app.utils.log_utils import LoggerConfig
+from app.config import MEAN, STD, PLOT_OUTPUT_PATH
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
+
 
 logger = LoggerConfig().get_logger(__name__)
 
@@ -50,7 +53,7 @@ class Visualizer:
             images = torch.stack([self.denormalize(img) for img in images])
             
             # Create a grid with black padding (pad_value=0)
-            grid_img = utils.make_grid(images, nrow=10, padding=15, pad_value=255)  # Pad with black (0)
+            grid_img = torchvision_utils.make_grid(images, nrow=10, padding=15, pad_value=255)  # Pad with black (0)
 
             # Make sure the image tensor is in the right format
             plt.figure(figsize=(12, 8))
@@ -172,3 +175,62 @@ class Visualizer:
             
         plt.show()
         plt.close()
+        
+        
+    def plot_confusion_matrices(self, bound_results):
+        """Plots side-by-side confusion matrices for the Reconstructor and Classifier.
+        This allows for a direct visual and statistical comparison between the 
+        baseline reconstructor (using the optimal threshold) and the standalone classifier."""
+        
+        gt_list = bound_results['gt_list']
+        det_scores = bound_results['det_scores']
+        class_probabilities = bound_results['probs_list']
+        standalone_recon_threshold = bound_results['thresholds']['standalone_recon_threshold']['threshold']
+        standalone_recon_threshold_rule = bound_results['thresholds']['standalone_recon_threshold']['rule']
+        
+        gt_array = np.array(gt_list)
+        
+        operators = {'>=': operator.ge, '>': operator.gt, '<=': operator.le, '<': operator.lt}
+        binary_predictions = operators[standalone_recon_threshold_rule](det_scores, standalone_recon_threshold).astype(int)
+        
+        # Classifier Predictions
+        all_probabilities = np.vstack(class_probabilities) 
+        predicted_labels = np.argmax(all_probabilities, axis=1)
+
+        # Calculate Accuracies
+        recon_acc = np.mean(binary_predictions == gt_array)
+        cls_acc = np.mean(predicted_labels == gt_array)
+        
+        print(f'Reconstructor - Accuracy: {recon_acc:.4f} --> {recon_acc * 100:.2f}%')
+        print(f'Classifier - Accuracy: {cls_acc:.4f} --> {cls_acc * 100:.2f}%\n')
+
+        # Reconstructor Metrics
+        recon_p, recon_r, recon_f1, _ = precision_recall_fscore_support(
+            gt_array, binary_predictions, average='binary', zero_division=0)
+        recon_cm = confusion_matrix(gt_array, binary_predictions)
+        recon_text = f'Accuracy: {recon_acc*100:.1f}% | Precision: {recon_p:.2f} | Recall: {recon_r:.2f} | F1: {recon_f1:.2f}'
+
+        # Classifier Metrics
+        cls_p, cls_r, cls_f1, _ = precision_recall_fscore_support(
+            gt_array, predicted_labels, average='binary', zero_division=0)
+        cls_cm = confusion_matrix(gt_array, predicted_labels)
+        cls_text = f'Accuracy: {cls_acc*100:.1f}% | Precision: {cls_p:.2f} | Recall: {cls_r:.2f} | F1: {cls_f1:.2f}'
+
+        # Plotting
+        fig, ax = plt.subplots(1, 2, figsize=(16, 6))
+        sns.heatmap(recon_cm, annot=True, fmt="d", cmap='Blues', 
+                    xticklabels=['Normal', 'Anomalous'], 
+                    yticklabels=['Normal', 'Anomalous'], ax=ax[0])
+        ax[0].set_title(f'Confusion Matrix - Reconstructor (Using Optimal Threshold)\n{recon_text}')
+        ax[0].set_xlabel('Predicted Labels')
+        ax[0].set_ylabel('True Labels')
+
+        sns.heatmap(cls_cm, annot=True, fmt="d", cmap='Blues', 
+                    xticklabels=['Normal', 'Anomalous'], 
+                    yticklabels=['Normal', 'Anomalous'], ax=ax[1])
+        ax[1].set_title(f'Confusion Matrix - Classifier\n{cls_text}')
+        ax[1].set_xlabel('Predicted Labels')
+        ax[1].set_ylabel('True Labels')
+
+        plt.tight_layout()
+        plt.show()

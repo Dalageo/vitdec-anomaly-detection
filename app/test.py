@@ -1,6 +1,6 @@
 import torch
 from app.utils.visualizer import Visualizer
-from app.utils.test_utils import get_bound_results
+from app.utils.bound_utils import get_bound_results
 from app.utils.load_dataset import MVTecDataModule
 from app.model.vit_decoder import get_vitdec
 from app.config import VIT_CHECKPOINT_PATH, DEVICE
