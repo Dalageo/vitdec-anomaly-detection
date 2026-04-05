@@ -7,7 +7,7 @@ from torchvision import utils as torchvision_utils
 import matplotlib.pyplot as plt
 from app.utils.log_utils import LoggerConfig
 from app.config import MEAN, STD, PLOT_OUTPUT_PATH
-from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, roc_auc_score
 
 
 logger = LoggerConfig().get_logger(__name__)
@@ -200,9 +200,17 @@ class Visualizer:
         # Calculate Accuracies
         recon_acc = np.mean(binary_predictions == gt_array)
         cls_acc = np.mean(predicted_labels == gt_array)
+        logger.info(f'Reconstructor - Accuracy: {recon_acc:.4f} --> {recon_acc * 100:.2f}%')
+        logger.info(f'Classifier - Accuracy: {cls_acc:.4f} --> {cls_acc * 100:.2f}%\n')
         
-        print(f'Reconstructor - Accuracy: {recon_acc:.4f} --> {recon_acc * 100:.2f}%')
-        print(f'Classifier - Accuracy: {cls_acc:.4f} --> {cls_acc * 100:.2f}%\n')
+        # Calculate AUROC
+        if standalone_recon_threshold_rule in ['<', '<=']:
+            recon_auroc = roc_auc_score(gt_array, -det_scores)
+        else: 
+            recon_auroc = roc_auc_score(gt_array, det_scores)
+        cls_auroc = roc_auc_score(gt_array, all_probabilities[:, 1])
+        logger.info(f"Reconstructor - AUROC Score: {recon_auroc:.3f}")
+        logger.info(f"Classifier - AUROC Score: {cls_auroc:.3f}")
 
         # Reconstructor Metrics
         recon_p, recon_r, recon_f1, _ = precision_recall_fscore_support(
