@@ -1,10 +1,15 @@
 import os
 import torch
+import operator
 import numpy as np
-from torchvision import utils
+import seaborn as sns
 import matplotlib.pyplot as plt
-from app.config import MEAN, STD
 from app.utils.log_utils import LoggerConfig
+from torchvision import utils as torchvision_utils
+from app.config import MEAN, STD, PLOT_OUTPUT_PATH
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, \
+                            roc_auc_score, accuracy_score
+
 
 logger = LoggerConfig().get_logger(__name__)
 
@@ -15,6 +20,8 @@ class Visualizer:
     def __init__(self):
         self.mean = MEAN
         self.std = STD
+        
+        self.plot_output_path = PLOT_OUTPUT_PATH
 
     # Denormalize a tensor image
     def denormalize(self, tensor):
@@ -47,7 +54,7 @@ class Visualizer:
             images = torch.stack([self.denormalize(img) for img in images])
             
             # Create a grid with black padding (pad_value=0)
-            grid_img = utils.make_grid(images, nrow=10, padding=15, pad_value=255)  # Pad with black (0)
+            grid_img = torchvision_utils.make_grid(images, nrow=10, padding=15, pad_value=255)  # Pad with black (0)
 
             # Make sure the image tensor is in the right format
             plt.figure(figsize=(12, 8))
@@ -63,8 +70,8 @@ class Visualizer:
             plt.show()
 
 
-    def plot_show(self, original_img, recon_img, epoch, save_plot: bool = False):
-        """Plot and show original and reconstructed images side-by-side."""
+    def display_reconstruction(self, original_img, recon_img, epoch, save_plot: bool = False):
+        """Visualizes the first image of the batch alongside its reconstruction."""
         
         # Denormalize and prepare the first image in the batch for display
         orginal_denorm = self.denormalize(original_img[0]).clamp(0, 1).detach().cpu().numpy()
@@ -96,40 +103,267 @@ class Visualizer:
         plt.close(fig)
         
      
-    def plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses):
+    def plot_learning_curves(self, train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, 
+                             train_recon_losses, val_recon_losses, save_plot=False):
         """Plot training and validation loss curves for total, classification, and reconstruction losses."""
 
-        plt.figure(figsize=(15, 5))
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+        epochs = range(1, len(train_total_losses) + 1)
         
-        # Plotting total loss
-        plt.subplot(1, 3, 1)
-        plt.plot(train_total_losses, label='Training Total Loss')
-        plt.plot(val_total_losses, label='Validation Total Loss')
-        plt.title('Total Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.grid(True)
+        def plot_subplot(ax, train_data, val_data, title):
+            ax.plot(epochs, train_data, label='Training', color='tab:blue')
+            ax.plot(epochs, val_data, label='Validation', color='tab:orange', linestyle='--')
+            ax.set_title(title, fontsize=12, fontweight='bold')
+            ax.set_xlabel('Epochs')
+            ax.set_ylabel('Loss')
+            ax.legend()
+            ax.grid(True, linestyle='--', alpha=0.7)
+        
+        # Total Loss
+        plot_subplot(axes[0], train_total_losses, val_total_losses, 'Total Loss')
 
-        # Plotting Classification loss
-        plt.subplot(1, 3, 2)
-        plt.plot(train_cls_losses, label='Training Classification Loss')
-        plt.plot(val_cls_losses, label='Validation Classification Loss')
-        plt.title('Classification Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.grid(True)
+        # Classification Loss
+        plot_subplot(axes[1], train_cls_losses, val_cls_losses, 'Classification Loss')
 
-        # Plotting Reconstruction loss
-        plt.subplot(1, 3, 3)
-        plt.plot(train_recon_losses, label='Training Reconstruction Loss')
-        plt.plot(val_recon_losses, label='Validation Reconstruction Loss')
-        plt.title('Reconstruction Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend(loc='upper right')  
-        plt.grid(True)
+        # Reconstruction Loss
+        plot_subplot(axes[2], train_recon_losses, val_recon_losses, 'Reconstruction Loss')
 
         plt.tight_layout()
+        
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+        
+        plt.show()
+        plt.close(fig)
+        
+        
+    def plot_anomaly_score_distribution(self, det_scores, gt_list, save_plot=None):
+        """Plots the histogram and KDE (Kernel Density Estimate) of anomaly scores 
+        for Normal vs. Anomalous classes."""
+        
+        plt.figure(figsize=(10, 6))
+
+        # Split scores by class
+        normal_scores = det_scores[gt_list == 0]
+        anomalous_scores = det_scores[gt_list == 1]
+        
+        logger.info(f"Anomaly Reconstruction Scores")
+        logger.info(f"Minimum Anomaly Score: {anomalous_scores.min()}")
+        logger.info(f"Maximum Anomaly Score: {anomalous_scores.max()} \n")
+
+        logger.info(f"Normal Reconstruction Scores")
+        logger.info(f"Minimum Normal Score: {normal_scores.min()}")
+        logger.info(f"Maximum Normal Score: {normal_scores.max()}")
+
+        # Plot Normal Scores
+        sns.histplot(normal_scores, bins=30, kde=(len(np.unique(normal_scores)) > 1), 
+                     label='Normal', color='blue', alpha=0.6)
+
+        # Plot Anomalous Scores
+        sns.histplot(anomalous_scores, bins=30, kde=(len(np.unique(anomalous_scores)) > 1), 
+                     label='Anomalous', color='red', alpha=0.6)
+
+        plt.xlabel('Anomaly Score')
+        plt.ylabel('Count') 
+        plt.title('Distribution of Anomaly Scores')
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.5)
+
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+            
+        plt.show()
+        plt.close()
+        
+        
+    def plot_bound_confusion_matrices(self, bound_results):
+        """Plots side-by-side confusion matrices for the Reconstructor and Classifier.
+        This allows for a direct visual and statistical comparison between the 
+        baseline reconstructor (using the optimal threshold) and the standalone classifier."""
+        
+        gt_list = bound_results['gt_list']
+        det_scores = bound_results['det_scores']
+        class_probabilities = bound_results['probs_list']
+        standalone_recon_threshold = bound_results['thresholds']['standalone_recon_threshold']['threshold']
+        standalone_recon_threshold_rule = bound_results['thresholds']['standalone_recon_threshold']['rule']
+        
+        gt_array = np.array(gt_list)
+        
+        operators = {'>=': operator.ge, '>': operator.gt, '<=': operator.le, '<': operator.lt}
+        binary_predictions = operators[standalone_recon_threshold_rule](det_scores, standalone_recon_threshold).astype(int)
+        
+        # Classifier Predictions
+        all_probabilities = np.vstack(class_probabilities) 
+        predicted_labels = np.argmax(all_probabilities, axis=1)
+
+        # Calculate Accuracies
+        recon_acc = np.mean(binary_predictions == gt_array)
+        cls_acc = np.mean(predicted_labels == gt_array)
+        logger.info(f'Reconstructor - Accuracy: {recon_acc:.4f} --> {recon_acc * 100:.2f}%')
+        logger.info(f'Classifier - Accuracy: {cls_acc:.4f} --> {cls_acc * 100:.2f}%\n')
+        
+        # Calculate AUROC
+        if standalone_recon_threshold_rule in ['<', '<=']:
+            recon_auroc = roc_auc_score(gt_array, -det_scores)
+        else: 
+            recon_auroc = roc_auc_score(gt_array, det_scores)
+        cls_auroc = roc_auc_score(gt_array, all_probabilities[:, 1])
+        logger.info(f"Reconstructor - AUROC Score: {recon_auroc:.3f}")
+        logger.info(f"Classifier - AUROC Score: {cls_auroc:.3f}")
+
+        # Reconstructor Metrics
+        recon_p, recon_r, recon_f1, _ = precision_recall_fscore_support(
+            gt_array, binary_predictions, average='binary', zero_division=0)
+        recon_cm = confusion_matrix(gt_array, binary_predictions)
+        recon_text = f'Accuracy: {recon_acc*100:.1f}% | Precision: {recon_p:.2f} | Recall: {recon_r:.2f} | F1: {recon_f1:.2f}'
+
+        # Classifier Metrics
+        cls_p, cls_r, cls_f1, _ = precision_recall_fscore_support(
+            gt_array, predicted_labels, average='binary', zero_division=0)
+        cls_cm = confusion_matrix(gt_array, predicted_labels)
+        cls_text = f'Accuracy: {cls_acc*100:.1f}% | Precision: {cls_p:.2f} | Recall: {cls_r:.2f} | F1: {cls_f1:.2f}'
+
+        # Plotting
+        fig, ax = plt.subplots(1, 2, figsize=(16, 6))
+        sns.heatmap(recon_cm, annot=True, fmt="d", cmap='Blues', 
+                    xticklabels=['Normal', 'Anomalous'], 
+                    yticklabels=['Normal', 'Anomalous'], ax=ax[0])
+        ax[0].set_title(f'Confusion Matrix - Reconstructor (Using Optimal Threshold)\n{recon_text}')
+        ax[0].set_xlabel('Predicted Labels')
+        ax[0].set_ylabel('True Labels')
+
+        sns.heatmap(cls_cm, annot=True, fmt="d", cmap='Blues', 
+                    xticklabels=['Normal', 'Anomalous'], 
+                    yticklabels=['Normal', 'Anomalous'], ax=ax[1])
+        ax[1].set_title(f'Confusion Matrix - Classifier\n{cls_text}')
+        ax[1].set_xlabel('Predicted Labels')
+        ax[1].set_ylabel('True Labels')
+
+        plt.tight_layout()
+        plt.show()
+        
+
+    def plot_bound_combined_confusion_matrix(self, bound_results):
+        """Plots a single confusion matrix for the combined Reconstructor + Classifier model.
+        Applies strict thresholding for obvious cases and applies the classifier 
+        only when anomaly scores fall within the overlapping bounds."""
+        
+        gt_array = bound_results['gt_list']
+        det_scores = bound_results['det_scores']
+        all_probabilities = bound_results['probs_list']
+        
+        overlap_start, overlap_end = bound_results['thresholds']['classifier_range']
+        cls_preds = np.argmax(all_probabilities, axis=1)
+        cls_probs_anomaly = all_probabilities[:, 1]
+        
+        combined_preds = np.zeros_like(gt_array)
+        combined_scores = np.zeros_like(det_scores, dtype=float)
+        
+        if overlap_start <= overlap_end:
+            # Apply Classifier to the Overlap Range
+            classifier_mask = (det_scores >= overlap_start) & (det_scores <= overlap_end)
+            combined_preds[classifier_mask] = cls_preds[classifier_mask]
+            combined_scores[classifier_mask] = cls_probs_anomaly[classifier_mask]
+            
+            # Apply Definitive Rules Outside the Bounds
+            normal_scores = det_scores[gt_array == 0]
+            anomalous_scores = det_scores[gt_array == 1]
+            
+            # Handle scores below the overlap
+            if anomalous_scores.min() < normal_scores.min():
+                combined_preds[det_scores < overlap_start] = 1
+                combined_scores[det_scores < overlap_start] = 1.0  # Anomaly
+            else:
+                combined_preds[det_scores < overlap_start] = 0
+                combined_scores[det_scores < overlap_start] = 0.0  # Normal
+                
+            # Handle scores above the overlap
+            if normal_scores.max() > anomalous_scores.max():
+                combined_preds[det_scores > overlap_end] = 0
+                combined_scores[det_scores > overlap_end] = 0.0    # Normal
+            else:
+                combined_preds[det_scores > overlap_end] = 1
+                combined_scores[det_scores > overlap_end] = 1.0    # Anomaly
+                
+        else:
+            # Perfect Separation Case
+            logger.info("Perfect Separation detected.")
+            optimal_rule = bound_results['thresholds']['standalone_recon_threshold']['rule']
+            optimal_thresh = bound_results['thresholds']['standalone_recon_threshold']['threshold']
+            ops = {'>=': operator.ge, '>': operator.gt, '<=': operator.le, '<': operator.lt}
+            combined_preds = ops[optimal_rule](det_scores, optimal_thresh).astype(int)
+            combined_scores = -det_scores if optimal_rule in ['<', '<='] else det_scores
+
+        # Calculate Combined Metrics
+        acc = np.mean(combined_preds == gt_array)
+        combined_auroc = roc_auc_score(gt_array, combined_scores)
+        
+        p, r, f1, _ = precision_recall_fscore_support(
+            gt_array, combined_preds, average='binary', zero_division=0)
+        cm = confusion_matrix(gt_array, combined_preds)
+        
+        logger.info(f'Combined Model - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
+        logger.info(f'Combined Model - AUROC Score: {combined_auroc:.3f}')
+        metrics_text = f'Accuracy: {acc*100:.1f}% | Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}'
+
+        # Plotting
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap='Blues', 
+                    xticklabels=['Normal', 'Anomalous'], 
+                    yticklabels=['Normal', 'Anomalous'])
+        
+        plt.title(f'Confusion Matrix - Combined Model\n{metrics_text}')
+        plt.xlabel('Predicted Labels')
+        plt.ylabel('True Labels')
+        
+        plt.tight_layout()
+        plt.show()
+        
+        
+    def plot_eval_combined_confusion_matrix(self, test_results):
+        """Evaluates and visualizes the performance of the combined anomaly detection model."""
+        
+        tn_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
+        tn_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
+        logger.info(f"True Negatives (Correctly called Normal): {len(tn_recon) + len(tn_cls)}")
+        logger.info(f"- {len(tn_recon)} verified by Reconstructor bounds")
+        logger.info(f"- {len(tn_cls)} verified by Classifier")
+
+        fp_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
+        fp_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
+        logger.info(f"\nFalse Positives (Wrongly called Abnormal): {len(fp_recon) + len(fp_cls)}")
+        logger.info(f"- {len(fp_recon)} wrongly flagged by Reconstructor bounds")
+        logger.info(f"- {len(fp_cls)} wrongly flagged by Classifier")
+
+        fn_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
+        fn_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
+        logger.info(f"\nFalse Negatives (Missed Anomalies): {len(fn_recon) + len(fn_cls)}")
+        logger.info(f"- {len(fn_recon)} missed because Reconstructor bounds were too low")
+        logger.info(f"- {len(fn_cls)} missed because Classifier guessed wrong")
+
+        tp_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
+        tp_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
+        logger.info(f"\nTrue Positives (Correctly caught Anomalies): {len(tp_recon) + len(tp_cls)}")
+        logger.info(f"- {len(tp_recon)} caught by Reconstructor bounds")
+        logger.info(f"- {len(tp_cls)} caught by Classifier\n")
+
+        true_labels = np.array([r['true_label'] for r in test_results])
+        predicted_labels = np.array([r['predicted_label'] for r in test_results])
+
+        # Calculate metrics
+        cm4 = confusion_matrix(true_labels, predicted_labels)
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision4, recall4, f14, _ = precision_recall_fscore_support(true_labels, predicted_labels, average='binary', zero_division=0)
+        final_metrics_text = f'Accuracy: {accuracy*100:.1f}% | Precision: {precision4:.2f} | Recall: {recall4:.2f} | F1 Score: {f14:.2f}'
+
+        # Plotting
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm4, annot=True, fmt='d', cmap='Blues', 
+                    xticklabels=['Normal', 'Abnormal'], 
+                    yticklabels=['Normal', 'Abnormal'])
+        plt.xlabel('Predicted Labels')
+        plt.ylabel('True Labels')
+        plt.title(f'Confusion Matrix - Final Combined Model\n{final_metrics_text}')
         plt.show()

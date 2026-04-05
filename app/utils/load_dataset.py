@@ -9,7 +9,7 @@ from torchvision import transforms as T
 from app.utils.log_utils import LoggerConfig
 from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Dataset, DataLoader as TorchDataLoader, SubsetRandomSampler
-from config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
+from app.config import AUGMENTATION_CONFIG, VAL_RATIO, SEED, BATCH_SIZE, TEST_RATIO, DATASET_PATH
 
 logger = LoggerConfig().get_logger(__name__)
 
@@ -86,7 +86,7 @@ class MVTecDataset(Dataset):
         anomaly_img_paths = [] 
         if os.path.isdir(anomaly_img_path):
             for ext in image_extensions:
-                search_pattern = os.path.join(anomaly_img_path, '**', ext)
+                search_pattern = os.path.join(anomaly_img_path, '**', f'*{ext}')
                 anomaly_img_paths.extend(glob.glob(search_pattern, recursive=True))
 
             num_anomaly_images = len(anomaly_img_paths)
@@ -99,8 +99,13 @@ class MVTecDataset(Dataset):
             
         if self.data_info:
             logger.info(f"Loading {len(x)} images for {self.phase}.")
-            logger.info("Class distribution:", Counter(y))
-            logger.info("Categories:", Counter(category))
+            dist_counts = Counter(y)
+            dist_str = ", ".join([f"{k}: {v}" for k, v in dist_counts.items()])
+            logger.info(f"Class distribution: {dist_str}")
+
+            cat_counts = Counter(category)
+            cat_str = ", ".join([f"{k}: {v}" for k, v in cat_counts.items()])
+            logger.info(f"Categories: {cat_str}")
             
         return x, y, category
     
@@ -197,11 +202,11 @@ class MVTecDataModule:
         self.bound_idx, self.test_idx = next(sss_test.split(np.zeros(len(labels_bound)), labels_bound))
 
         if self.data_info:
-            logger.info("\n---------- Dataset Distribution ----------")
-            logger.info("Number of training images:", len(self.train_idx))
-            logger.info("Number of validation images:", len(self.val_idx))
-            logger.info("Number of bound images:", len(self.bound_idx))
-            logger.info("Number of testing images:", len(self.test_idx))
+            logger.info("Dataset Distribution:")
+            logger.info(f"Number of training images: {len(self.train_idx)}")
+            logger.info(f"Number of validation images: {len(self.val_idx)}")
+            logger.info(f"Number of bound images: {len(self.bound_idx)}")
+            logger.info(f"Number of testing images: {len(self.test_idx)}")
             
     # Dataloaders
     @property

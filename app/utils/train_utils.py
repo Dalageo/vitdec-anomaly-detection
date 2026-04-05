@@ -6,11 +6,12 @@ from tqdm import tqdm
 import torch.nn as nn
 from app.utils.visualizer import Visualizer
 from app.utils.log_utils import LoggerConfig
-from app.utils.log_utils import AverageMeter, print_log, convert_secs2time
+from app.utils.log_utils import AverageMeter, convert_secs2time
 from app.config import MEAN, STD, \
                        EPOCHS, BATCH_SIZE, DEVICE, \
                        AMP, BETA_1, BETA_2, \
-                       LR_VIT, LR_DEC, WD_VIT, WD_DEC \
+                       LR_VIT, LR_DEC, WD_VIT, WD_DEC, \
+                       LOG_OUTPUT_PATH, CHECKPOINT_PATH
                        
 logger = LoggerConfig().get_logger(__name__)
 
@@ -25,10 +26,10 @@ class EarlyStop:
         self.best_score = None
         self.early_stop = False
         self.val_loss_min = np.inf
-        self.save_name = "checkpoints/checkpoint.pt"
+        self.checkpoint_path = CHECKPOINT_PATH
         self.verbose = True
 
-    def __call__(self, class_loss, recon_loss, model):
+    def __call__(self, class_loss, recon_loss, model, epoch=0, optimizer_vit=None, optimizer_dec=None, scheduler=None):
         overall_loss = class_loss + recon_loss
         
         # Check if the new loss is significantly better
@@ -36,7 +37,7 @@ class EarlyStop:
             if self.verbose:
                 logger.info(f"Overall loss decreased ({self.val_loss_min:.6f} --> {overall_loss:.6f}). Saving model...")
                 
-            self.save_checkpoint(model)
+            self.save_checkpoint(model, epoch, optimizer_vit, optimizer_dec, scheduler)
             self.val_loss_min = overall_loss 
             self.counter = 0
         else:
@@ -51,9 +52,22 @@ class EarlyStop:
 
         return False
 
-    def save_checkpoint(self, model):
+    def save_checkpoint(self, model, epoch=0, optimizer_vit=None, optimizer_dec=None, scheduler=None):
         """ Saves model when validation loss decrease. """
-        torch.save(model.state_dict(), self.save_name)
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'val_loss': self.val_loss_min,
+        }
+        
+        if optimizer_vit is not None:
+            checkpoint['optimizer_vit_state_dict'] = optimizer_vit.state_dict()
+        if optimizer_dec is not None:
+            checkpoint['optimizer_dec_state_dict'] = optimizer_dec.state_dict()
+        if scheduler is not None:
+            checkpoint['scheduler_state_dict'] = scheduler.state_dict()
+        
+        torch.save(checkpoint, self.checkpoint_path)
         logger.info("Model saved")
         
         
@@ -68,10 +82,9 @@ class ViTDecTrainer:
         self.visualizer = Visualizer()
         
         # System & Logging Setup
-        self.save_dir = "app/checkpoints/"
-        os.makedirs(self.save_dir, exist_ok=True)
-        self.log_path = os.path.join(self.save_dir, 'training_log.txt')
-        self.log = open(self.log_path, 'w')
+        log_dir = os.path.dirname(LOG_OUTPUT_PATH)
+        os.makedirs(log_dir, exist_ok=True)
+        self.checkpoint_path = CHECKPOINT_PATH
         self.device = DEVICE
         
         # Data & Training Hyperparameters
@@ -90,18 +103,15 @@ class ViTDecTrainer:
         self.amp = AMP
         
         # Loss Functions & Tools
-        self.mse = nn.MSELoss()
+        # self.mse = nn.MSELoss()
+        self.mse = nn.L1Loss()
         self.cross_entropy = nn.CrossEntropyLoss()
         self.scaler = torch.amp.GradScaler(enabled=AMP) 
-        self.early_stop = EarlyStop(patience=5, delta=0.001)
+        self.early_stop = EarlyStop(patience=5, delta=0.00001)
         
         # Initialize Training Components
         self.get_train_components()
     
-    def __del__(self):
-        """Ensures the log file is closed when the trainer instance is deleted"""
-        if self.log:
-            self.log.close()
         
     # ---------------------------------------
     # Optimizers and scheduler initialization 
@@ -131,6 +141,30 @@ class ViTDecTrainer:
         )
 
 
+    def load_checkpoint(self):
+        """Load model checkpoint and optimizer states to resume training"""
+        
+        if not os.path.exists(self.checkpoint_path):
+            logger.warning(f"Checkpoint not found at {self.checkpoint_path}")
+            return 0
+        
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        
+        # Load model state
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        start_epoch = checkpoint.get('epoch', 0) + 1
+        
+        # Load optimizer states
+        if 'optimizer_vit_state_dict' in checkpoint:
+            self.optimizer_vit.load_state_dict(checkpoint['optimizer_vit_state_dict'])
+        if 'optimizer_dec_state_dict' in checkpoint:
+            self.optimizer_dec.load_state_dict(checkpoint['optimizer_dec_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            
+        logger.info(f"Loaded checkpoint from epoch {checkpoint.get('epoch', 0)}")
+        return start_epoch
+
     # --------------------------------------
     # Training operations for a single epoch
     # --------------------------------------
@@ -143,7 +177,7 @@ class ViTDecTrainer:
         total_recon_samples = 0
         total_cls_samples = 0
 
-        for (x, y, _) in tqdm(self.train_loader):
+        for (x, y, _) in tqdm(self.train_loader, desc="Training"):
             x = x.to(self.device)
             y = y.to(self.device)
 
@@ -190,8 +224,17 @@ class ViTDecTrainer:
             if (recon_mask.any() or cls_mask.any()):
                 if self.amp:
                     self.scaler.scale(total_loss).backward()
+                    
+                    # Only unscale and step optimizers that have gradients
+                    # ViT encoder always gets gradients (used in both tasks)
+                    self.scaler.unscale_(self.optimizer_vit)
                     self.scaler.step(self.optimizer_vit)
-                    self.scaler.step(self.optimizer_dec)
+                    
+                    # Decoder only gets gradients from reconstruction
+                    if recon_mask.any():
+                        self.scaler.unscale_(self.optimizer_dec)
+                        self.scaler.step(self.optimizer_dec)
+                        
                     self.scaler.update()
                 else:
                     total_loss.backward()
@@ -205,7 +248,6 @@ class ViTDecTrainer:
         
         log_msg = f'Train Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
         logger.info(log_msg)
-        print_log(log_msg, self.log)
         
         return avg_loss, avg_recon_loss, avg_cls_loss
 
@@ -225,7 +267,7 @@ class ViTDecTrainer:
         last_original = None
         last_recon = None
     
-        for (x, y, _) in tqdm(self.val_loader):
+        for (x, y, _) in tqdm(self.val_loader, desc="Evaluating"):
             x = x.to(self.device)
             y = y.to(self.device)
 
@@ -266,9 +308,9 @@ class ViTDecTrainer:
         avg_cls_loss = sum_cls_loss / total_cls_samples if total_cls_samples > 0 else 0.0
         avg_loss = avg_recon_loss + avg_cls_loss
 
-        if last_recon is not None and epoch % 2 == 0:
-            save_plot = (epoch % 5 == 0)
-            self.visualizer.plot_show(last_original, last_recon, epoch, save_plot=save_plot)
+        if last_recon is not None and epoch % 1 == 0:
+            save_plot = (epoch % 1 == 0)
+            self.visualizer.display_reconstruction(last_original, last_recon, epoch, save_plot=save_plot)
                 
         # Print learning rate for optimizer_vit
         for i, param_group in enumerate(self.optimizer_vit.param_groups):
@@ -280,7 +322,6 @@ class ViTDecTrainer:
 
         log_msg = f'Valid Epoch: {epoch} | Avg Loss: {avg_loss:.6f} | Avg Reconstruction Loss: {avg_recon_loss:.6f} | Avg Classification Loss: {avg_cls_loss:.6f}'
         logger.info(log_msg)
-        print_log(log_msg, self.log)
 
         return avg_loss, avg_recon_loss, avg_cls_loss
 
@@ -288,7 +329,7 @@ class ViTDecTrainer:
     # --------------------------
     # Executes training workflow
     # --------------------------
-    def train(self):
+    def train(self, resume=False):
         # Set up time tracking
         start_time = time.time()
         epoch_time = AverageMeter()
@@ -297,13 +338,18 @@ class ViTDecTrainer:
         train_total_losses, train_recon_losses, train_cls_losses = [], [], []
         val_total_losses, val_recon_losses, val_cls_losses = [], [], []
 
+        # Resume training if needed
+        start_epoch = 1
+        if resume:
+            start_epoch = self.load_checkpoint()
+        
         # Main training loop
-        for epoch in range(1, self.epochs + 1):
+        for epoch in range(start_epoch, self.epochs + 1):
             # Estimate time remaining
             need_hour, need_mins, need_secs = convert_secs2time(epoch_time.avg * (self.epochs - epoch))
             need_time = f'[Need: {need_hour:02d}:{need_mins:02d}:{need_secs:02d}]'
             log_msg = f' {epoch:3d}/{self.epochs:3d} ----- [{time.strftime("%Y-%m-%d %H:%M:%S")}] {need_time}'
-            print_log(log_msg, self.log)
+            logger.info(log_msg)
             
             # Receive detailed losses from training
             train_loss, train_recon_loss, train_cls_loss = self.train_epoch(epoch)
@@ -318,9 +364,10 @@ class ViTDecTrainer:
             val_cls_losses.append(val_cls_loss)
 
             # Early stopping checks against total validation loss
-            if self.early_stop(val_cls_loss, val_recon_loss, self.model):
+            if self.early_stop(val_cls_loss, val_recon_loss, self.model, epoch, 
+                          self.optimizer_vit, self.optimizer_dec, self.scheduler):
                 log_msg = "Training stopped early due to lack of improvement."
-                print_log(log_msg, self.log)
+                logger.info(log_msg)
                 break
 
             # Step the scheduler with the validation loss
@@ -331,4 +378,5 @@ class ViTDecTrainer:
             start_time = time.time()
 
         # Plot training and validation losses.
-        self.visualizer.plot_loss(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, train_recon_losses, val_recon_losses)
+        self.visualizer.plot_learning_curves(train_total_losses, val_total_losses, train_cls_losses, val_cls_losses, 
+                                             train_recon_losses, val_recon_losses, save_plot=True)
