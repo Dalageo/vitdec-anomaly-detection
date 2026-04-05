@@ -6,7 +6,7 @@ from app.model.vit_decoder import get_vitdec
 from app.config import VIT_CHECKPOINT_PATH, DEVICE
 
 
-def model_training():
+def model_evaluation():
     data_module = MVTecDataModule(data_info=True)
     bound_loader = data_module.bound_dataloader
     

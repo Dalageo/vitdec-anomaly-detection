@@ -242,3 +242,80 @@ class Visualizer:
 
         plt.tight_layout()
         plt.show()
+        
+
+    def plot_combined_confusion_matrix(self, bound_results):
+        """Plots a single confusion matrix for the combined Reconstructor + Classifier model.
+        Applies strict thresholding for obvious cases and applies the classifier 
+        only when anomaly scores fall within the overlapping bounds."""
+        
+        gt_array = bound_results['gt_list']
+        det_scores = bound_results['det_scores']
+        all_probabilities = bound_results['probs_list']
+        
+        overlap_start, overlap_end = bound_results['thresholds']['classifier_range']
+        cls_preds = np.argmax(all_probabilities, axis=1)
+        cls_probs_anomaly = all_probabilities[:, 1]
+        
+        combined_preds = np.zeros_like(gt_array)
+        combined_scores = np.zeros_like(det_scores, dtype=float)
+        
+        if overlap_start <= overlap_end:
+            # Apply Classifier to the Overlap Range
+            classifier_mask = (det_scores >= overlap_start) & (det_scores <= overlap_end)
+            combined_preds[classifier_mask] = cls_preds[classifier_mask]
+            combined_scores[classifier_mask] = cls_probs_anomaly[classifier_mask]
+            
+            # Apply Definitive Rules Outside the Bounds
+            normal_scores = det_scores[gt_array == 0]
+            anomalous_scores = det_scores[gt_array == 1]
+            
+            # Handle scores below the overlap
+            if anomalous_scores.min() < normal_scores.min():
+                combined_preds[det_scores < overlap_start] = 1
+                combined_scores[det_scores < overlap_start] = 1.0  # Anomaly
+            else:
+                combined_preds[det_scores < overlap_start] = 0
+                combined_scores[det_scores < overlap_start] = 0.0  # Normal
+                
+            # Handle scores above the overlap
+            if normal_scores.max() > anomalous_scores.max():
+                combined_preds[det_scores > overlap_end] = 0
+                combined_scores[det_scores > overlap_end] = 0.0    # Normal
+            else:
+                combined_preds[det_scores > overlap_end] = 1
+                combined_scores[det_scores > overlap_end] = 1.0    # Anomaly
+                
+        else:
+            # Perfect Separation Case
+            print("Perfect Separation detected.")
+            optimal_rule = bound_results['thresholds']['standalone_recon_threshold']['rule']
+            optimal_thresh = bound_results['thresholds']['standalone_recon_threshold']['threshold']
+            ops = {'>=': operator.ge, '>': operator.gt, '<=': operator.le, '<': operator.lt}
+            combined_preds = ops[optimal_rule](det_scores, optimal_thresh).astype(int)
+            combined_scores = -det_scores if optimal_rule in ['<', '<='] else det_scores
+
+        # Calculate Combined Metrics
+        acc = np.mean(combined_preds == gt_array)
+        combined_auroc = roc_auc_score(gt_array, combined_scores)
+        
+        p, r, f1, _ = precision_recall_fscore_support(
+            gt_array, combined_preds, average='binary', zero_division=0)
+        cm = confusion_matrix(gt_array, combined_preds)
+        
+        print(f'Combined Model - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
+        print(f'Combined Model - AUROC Score: {combined_auroc:.3f}')
+        metrics_text = f'Accuracy: {acc*100:.1f}% | Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}'
+
+        # Plotting
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap='Blues', 
+                    xticklabels=['Normal', 'Anomalous'], 
+                    yticklabels=['Normal', 'Anomalous'])
+        
+        plt.title(f'Confusion Matrix - Combined Model\n{metrics_text}')
+        plt.xlabel('Predicted Labels')
+        plt.ylabel('True Labels')
+        
+        plt.tight_layout()
+        plt.show()
