@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy.ndimage import gaussian_filter
 from app.utils.log_utils import LoggerConfig
-from sklearn.metrics import precision_recall_fscore_support, accuracy_score
+from sklearn.metrics import precision_recall_fscore_support
 
 
 logger = LoggerConfig().get_logger(__name__)
@@ -30,7 +30,7 @@ def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     probs_list = []  
 
     with torch.no_grad():
-        for (x, label, _) in tqdm(bound_loader, desc="Testing"):
+        for (x, label, _) in tqdm(bound_loader, desc="Testing(Bounds)"):
             x = x.to(device)
             label = label.to(device)
             

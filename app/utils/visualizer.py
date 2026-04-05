@@ -3,11 +3,12 @@ import torch
 import operator
 import numpy as np
 import seaborn as sns
-from torchvision import utils as torchvision_utils
 import matplotlib.pyplot as plt
 from app.utils.log_utils import LoggerConfig
+from torchvision import utils as torchvision_utils
 from app.config import MEAN, STD, PLOT_OUTPUT_PATH
-from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, roc_auc_score
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, \
+                            roc_auc_score, accuracy_score
 
 
 logger = LoggerConfig().get_logger(__name__)
@@ -177,7 +178,7 @@ class Visualizer:
         plt.close()
         
         
-    def plot_confusion_matrices(self, bound_results):
+    def plot_bound_confusion_matrices(self, bound_results):
         """Plots side-by-side confusion matrices for the Reconstructor and Classifier.
         This allows for a direct visual and statistical comparison between the 
         baseline reconstructor (using the optimal threshold) and the standalone classifier."""
@@ -244,7 +245,7 @@ class Visualizer:
         plt.show()
         
 
-    def plot_combined_confusion_matrix(self, bound_results):
+    def plot_bound_combined_confusion_matrix(self, bound_results):
         """Plots a single confusion matrix for the combined Reconstructor + Classifier model.
         Applies strict thresholding for obvious cases and applies the classifier 
         only when anomaly scores fall within the overlapping bounds."""
@@ -288,7 +289,7 @@ class Visualizer:
                 
         else:
             # Perfect Separation Case
-            print("Perfect Separation detected.")
+            logger.info("Perfect Separation detected.")
             optimal_rule = bound_results['thresholds']['standalone_recon_threshold']['rule']
             optimal_thresh = bound_results['thresholds']['standalone_recon_threshold']['threshold']
             ops = {'>=': operator.ge, '>': operator.gt, '<=': operator.le, '<': operator.lt}
@@ -303,8 +304,8 @@ class Visualizer:
             gt_array, combined_preds, average='binary', zero_division=0)
         cm = confusion_matrix(gt_array, combined_preds)
         
-        print(f'Combined Model - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
-        print(f'Combined Model - AUROC Score: {combined_auroc:.3f}')
+        logger.info(f'Combined Model - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
+        logger.info(f'Combined Model - AUROC Score: {combined_auroc:.3f}')
         metrics_text = f'Accuracy: {acc*100:.1f}% | Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}'
 
         # Plotting
@@ -318,4 +319,51 @@ class Visualizer:
         plt.ylabel('True Labels')
         
         plt.tight_layout()
+        plt.show()
+        
+        
+    def plot_eval_combined_confusion_matrix(self, test_results):
+        """Evaluates and visualizes the performance of the combined anomaly detection model."""
+        
+        tn_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
+        tn_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
+        logger.info(f"True Negatives (Correctly called Normal): {len(tn_recon) + len(tn_cls)}")
+        logger.info(f"- {len(tn_recon)} verified by Reconstructor bounds")
+        logger.info(f"- {len(tn_cls)} verified by Classifier")
+
+        fp_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
+        fp_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
+        logger.info(f"\nFalse Positives (Wrongly called Abnormal): {len(fp_recon) + len(fp_cls)}")
+        logger.info(f"- {len(fp_recon)} wrongly flagged by Reconstructor bounds")
+        logger.info(f"- {len(fp_cls)} wrongly flagged by Classifier")
+
+        fn_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
+        fn_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
+        logger.info(f"\nFalse Negatives (Missed Anomalies): {len(fn_recon) + len(fn_cls)}")
+        logger.info(f"- {len(fn_recon)} missed because Reconstructor bounds were too low")
+        logger.info(f"- {len(fn_cls)} missed because Classifier guessed wrong")
+
+        tp_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
+        tp_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
+        logger.info(f"\nTrue Positives (Correctly caught Anomalies): {len(tp_recon) + len(tp_cls)}")
+        logger.info(f"- {len(tp_recon)} caught by Reconstructor bounds")
+        logger.info(f"- {len(tp_cls)} caught by Classifier\n")
+
+        true_labels = np.array([r['true_label'] for r in test_results])
+        predicted_labels = np.array([r['predicted_label'] for r in test_results])
+
+        # Calculate metrics
+        cm4 = confusion_matrix(true_labels, predicted_labels)
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision4, recall4, f14, _ = precision_recall_fscore_support(true_labels, predicted_labels, average='binary', zero_division=0)
+        final_metrics_text = f'Accuracy: {accuracy*100:.1f}% | Precision: {precision4:.2f} | Recall: {recall4:.2f} | F1 Score: {f14:.2f}'
+
+        # Plotting
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm4, annot=True, fmt='d', cmap='Blues', 
+                    xticklabels=['Normal', 'Abnormal'], 
+                    yticklabels=['Normal', 'Abnormal'])
+        plt.xlabel('Predicted Labels')
+        plt.ylabel('True Labels')
+        plt.title(f'Confusion Matrix - Final Combined Model\n{final_metrics_text}')
         plt.show()
