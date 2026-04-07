@@ -329,30 +329,34 @@ class Visualizer:
         plt.show()
         
         
-    def plot_eval_combined_confusion_matrix(self, test_results, save_plot: bool=False):
+    def plot_test_combined_confusion_matrix(self, test_results, save_plot: bool=False):
         """Evaluates and visualizes the performance of the combined anomaly detection model."""
         
         tn_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
         tn_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
+        logger.info("")
         logger.info(f"True Negatives (Correctly called Normal): {len(tn_recon) + len(tn_cls)}")
         logger.info(f"- {len(tn_recon)} verified by Reconstructor bounds")
         logger.info(f"- {len(tn_cls)} verified by Classifier")
 
         fp_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
         fp_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
-        logger.info(f"\nFalse Positives (Wrongly called Abnormal): {len(fp_recon) + len(fp_cls)}")
+        logger.info("")
+        logger.info(f"False Positives (Wrongly called Abnormal): {len(fp_recon) + len(fp_cls)}")
         logger.info(f"- {len(fp_recon)} wrongly flagged by Reconstructor bounds")
         logger.info(f"- {len(fp_cls)} wrongly flagged by Classifier")
 
         fn_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
         fn_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
-        logger.info(f"\nFalse Negatives (Missed Anomalies): {len(fn_recon) + len(fn_cls)}")
+        logger.info("")
+        logger.info(f"False Negatives (Missed Anomalies): {len(fn_recon) + len(fn_cls)}")
         logger.info(f"- {len(fn_recon)} missed because Reconstructor bounds were too low")
         logger.info(f"- {len(fn_cls)} missed because Classifier guessed wrong")
 
         tp_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
         tp_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
-        logger.info(f"\nTrue Positives (Correctly caught Anomalies): {len(tp_recon) + len(tp_cls)}")
+        logger.info("")
+        logger.info(f"True Positives (Correctly caught Anomalies): {len(tp_recon) + len(tp_cls)}")
         logger.info(f"- {len(tp_recon)} caught by Reconstructor bounds")
         logger.info(f"- {len(tp_cls)} caught by Classifier\n")
 

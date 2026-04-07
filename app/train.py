@@ -1,7 +1,7 @@
-from app.utils.load_dataset import MVTecDataModule
 from app.utils.visualizer import Visualizer
 from app.model.vit_decoder import get_vitdec
 from app.utils.train_utils import ViTDecTrainer
+from app.utils.load_dataset import MVTecDataModule
 
 
 def model_training():
