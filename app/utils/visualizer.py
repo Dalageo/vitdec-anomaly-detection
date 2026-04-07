@@ -20,7 +20,6 @@ class Visualizer:
     def __init__(self):
         self.mean = MEAN
         self.std = STD
-        
         self.plot_output_path = PLOT_OUTPUT_PATH
 
     # Denormalize a tensor image
@@ -138,7 +137,7 @@ class Visualizer:
         plt.close(fig)
         
         
-    def plot_anomaly_score_distribution(self, det_scores, gt_list, save_plot=None):
+    def plot_anomaly_score_distribution(self, det_scores, gt_list, save_plot: bool=False):
         """Plots the histogram and KDE (Kernel Density Estimate) of anomaly scores 
         for Normal vs. Anomalous classes."""
         
@@ -178,7 +177,7 @@ class Visualizer:
         plt.close()
         
         
-    def plot_bound_confusion_matrices(self, bound_results):
+    def plot_bound_confusion_matrices(self, bound_results, save_plot: bool=False):
         """Plots side-by-side confusion matrices for the Reconstructor and Classifier.
         This allows for a direct visual and statistical comparison between the 
         baseline reconstructor (using the optimal threshold) and the standalone classifier."""
@@ -241,11 +240,15 @@ class Visualizer:
         ax[1].set_xlabel('Predicted Labels')
         ax[1].set_ylabel('True Labels')
 
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+            
         plt.tight_layout()
         plt.show()
         
 
-    def plot_bound_combined_confusion_matrix(self, bound_results):
+    def plot_bound_combined_confusion_matrix(self, bound_results, save_plot: bool=False):
         """Plots a single confusion matrix for the combined Reconstructor + Classifier model.
         Applies strict thresholding for obvious cases and applies the classifier 
         only when anomaly scores fall within the overlapping bounds."""
@@ -318,11 +321,15 @@ class Visualizer:
         plt.xlabel('Predicted Labels')
         plt.ylabel('True Labels')
         
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+            
         plt.tight_layout()
         plt.show()
         
         
-    def plot_eval_combined_confusion_matrix(self, test_results):
+    def plot_eval_combined_confusion_matrix(self, test_results, save_plot: bool=False):
         """Evaluates and visualizes the performance of the combined anomaly detection model."""
         
         tn_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
@@ -366,4 +373,10 @@ class Visualizer:
         plt.xlabel('Predicted Labels')
         plt.ylabel('True Labels')
         plt.title(f'Confusion Matrix - Final Combined Model\n{final_metrics_text}')
+        
+        if save_plot:
+            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
+            plt.savefig(self.plot_output_path, dpi=300)
+        
+        plt.tight_layout()
         plt.show()

@@ -67,15 +67,14 @@ def get_bound_results(model, bound_loader, device, apply_gaussian=False):
             
     det_scores_np = np.array(det_scores)
     gt_list_np = np.array(gt_list)
-    thresholds = get_thresholds(det_scores_np, gt_list_np) 
             
     return {
-        'det_scores': det_scores_np,                        # List of anomaly scores
-        'gt_list': gt_list_np,                              # List of ground truth labels
-        'test_imgs': np.array(test_imgs),                   # Original images
-        'recon_imgs': np.array(recon_imgs),                 # Reconstructed images
-        'probs_list': np.concatenate(probs_list, axis=0),   # Classifier probability predictions
-        'thresholds': thresholds                            # Overlap bounds and thresholds
+        'det_scores': det_scores_np,                             # List of anomaly scores
+        'gt_list': gt_list_np,                                   # List of ground truth labels
+        'test_imgs': np.array(test_imgs),                        # Original images
+        'recon_imgs': np.array(recon_imgs),                      # Reconstructed images
+        'probs_list': np.concatenate(probs_list, axis=0),        # Classifier probability predictions
+        'thresholds': get_thresholds(det_scores_np, gt_list_np)  # Overlap bounds and thresholds
      }
     
     

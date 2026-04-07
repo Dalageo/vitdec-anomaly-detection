@@ -16,5 +16,5 @@ def model_evaluation():
     
     bound_results = get_bound_results(vitdec, bound_loader, DEVICE)
     image_visualizer = Visualizer()
-    image_visualizer.plot_anomaly_score_distribution(det_scores=bound_results["det_scores"], gt_list=bound_results["gt_list"], save_plot=True)  
+    image_visualizer.plot_bound_combined_confusion_matrix(bound_results=bound_results)  
     
