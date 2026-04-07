@@ -1,11 +1,3 @@
-"""
-Evaluating the model using ROC AUC score which measures the model's ability to distinguish between classes (in this case, anomalous vs. normal pixels), with a score of 1.0 representing perfect discrimination and a score of 0.5 representing random guessing.
-
-- **Detection scores** are used for identifying the presence of anomalies in the entire image without pinpointing their exact locations.
-
-- **Segmentation scores** provide a detailed map of anomaly likelihood across an image, useful for precisely locating anomalies
-"""
-
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -14,7 +6,6 @@ import torch.nn.functional as F
 from scipy.ndimage import gaussian_filter
 from app.utils.log_utils import LoggerConfig
 from sklearn.metrics import precision_recall_fscore_support
-
 
 logger = LoggerConfig().get_logger(__name__)
 
@@ -30,7 +21,7 @@ def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     probs_list = []  
 
     with torch.no_grad():
-        for (x, label, _) in tqdm(bound_loader, desc="Testing(Bounds)"):
+        for (x, label, _) in tqdm(bound_loader, desc="Testing(Bound)"):
             x = x.to(device)
             label = label.to(device)
             

@@ -130,8 +130,8 @@ class Visualizer:
         plt.tight_layout()
         
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'training_curves.png'), dpi=300)
         
         plt.show()
         plt.close(fig)
@@ -170,8 +170,8 @@ class Visualizer:
         plt.grid(True, linestyle='--', alpha=0.5)
 
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'anomaly_score_distribution.png'), dpi=300)
             
         plt.show()
         plt.close()
@@ -241,8 +241,8 @@ class Visualizer:
         ax[1].set_ylabel('True Labels')
 
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'bound_confusion_matrices.png'), dpi=300)
             
         plt.tight_layout()
         plt.show()
@@ -307,8 +307,8 @@ class Visualizer:
             gt_array, combined_preds, average='binary', zero_division=0)
         cm = confusion_matrix(gt_array, combined_preds)
         
-        logger.info(f'Combined Model - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
-        logger.info(f'Combined Model - AUROC Score: {combined_auroc:.3f}')
+        logger.info(f'Combined Model(Bound Set) - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
+        logger.info(f'Combined Model(Bound Set) - AUROC Score: {combined_auroc:.3f}')
         metrics_text = f'Accuracy: {acc*100:.1f}% | Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}'
 
         # Plotting
@@ -322,8 +322,8 @@ class Visualizer:
         plt.ylabel('True Labels')
         
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'bound_combined_confusion_matrix.png'), dpi=300)
             
         plt.tight_layout()
         plt.show()
@@ -331,7 +331,23 @@ class Visualizer:
         
     def plot_test_combined_confusion_matrix(self, test_results, save_plot: bool=False):
         """Evaluates and visualizes the performance of the combined anomaly detection model."""
+        true_labels = np.array([r['true_label'] for r in test_results])
+        predicted_labels = np.array([r['predicted_label'] for r in test_results])
         
+        # Calculate metrics
+        cm = confusion_matrix(true_labels, predicted_labels)
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision4, recall4, f14, _ = precision_recall_fscore_support(true_labels, predicted_labels, average='binary', zero_division=0)
+
+        logger.info(f'Combined Model(Test Set) - Accuracy: {accuracy:.4f} --> {accuracy * 100:.2f}%')
+        if len(test_results) > 0 and 'combined_score' in test_results[0]: 
+            test_scores = np.array([r['combined_score'] for r in test_results]) 
+            test_auroc = roc_auc_score(true_labels, test_scores)
+            logger.info(f'Combined Model(Test Set) - AUROC Score: {test_auroc:.3f}')
+        else:
+            test_auroc = roc_auc_score(true_labels, predicted_labels)
+            logger.info(f'Combined Model(Test Set) - AUROC Score: {test_auroc:.3f} (Calculated from binary predictions)')
+            
         tn_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
         tn_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
         logger.info("")
@@ -364,14 +380,14 @@ class Visualizer:
         predicted_labels = np.array([r['predicted_label'] for r in test_results])
 
         # Calculate metrics
-        cm4 = confusion_matrix(true_labels, predicted_labels)
+        cm = confusion_matrix(true_labels, predicted_labels)
         accuracy = accuracy_score(true_labels, predicted_labels)
         precision4, recall4, f14, _ = precision_recall_fscore_support(true_labels, predicted_labels, average='binary', zero_division=0)
         final_metrics_text = f'Accuracy: {accuracy*100:.1f}% | Precision: {precision4:.2f} | Recall: {recall4:.2f} | F1 Score: {f14:.2f}'
 
         # Plotting
         plt.figure(figsize=(8, 6))
-        sns.heatmap(cm4, annot=True, fmt='d', cmap='Blues', 
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                     xticklabels=['Normal', 'Abnormal'], 
                     yticklabels=['Normal', 'Abnormal'])
         plt.xlabel('Predicted Labels')
@@ -379,8 +395,8 @@ class Visualizer:
         plt.title(f'Confusion Matrix - Final Combined Model\n{final_metrics_text}')
         
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'test_combined_confusion_matrix.png'), dpi=300)
         
         plt.tight_layout()
         plt.show()

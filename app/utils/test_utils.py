@@ -55,27 +55,32 @@ def test(model, test_loader, thresholds, device, apply_gaussian=False):
             
             # Apply the Combined Logic
             batch_preds = np.zeros_like(overall_mse_mean, dtype=int)
+            batch_combined_scores = np.zeros_like(overall_mse_mean, dtype=float)
             batch_decision_source = np.empty_like(overall_mse_mean, dtype=object)
             
             if not perfect_separation:
                 # Classifier Range (Inside bounds)
                 in_range = (overall_mse_mean >= overlap_start) & (overall_mse_mean <= overlap_end)
                 batch_preds[in_range] = predicted_classes[in_range]
+                batch_combined_scores[in_range] = probs[in_range, 1]
                 batch_decision_source[in_range] = 'classifier'
                 
                 # Definite Range (Below overlap)
                 below_range = overall_mse_mean < overlap_start
                 batch_preds[below_range] = 1 if below_is_anomaly else 0
+                batch_combined_scores[below_range] = 1.0 if below_is_anomaly else 0.0
                 batch_decision_source[below_range] = 'recon_threshold_rule'
                 
                 # Definite Range (Above overlap)
                 above_range = overall_mse_mean > overlap_end
                 batch_preds[above_range] = 1 if above_is_anomaly else 0
+                batch_combined_scores[above_range] = 1.0 if above_is_anomaly else 0.0
                 batch_decision_source[above_range] = 'recon_threshold_rule'
                 
             else:
                 # Perfect Separation Fallback
                 batch_preds = ops[standalone_rule](overall_mse_mean, standalone_thresh).astype(int)
+                batch_combined_scores = -overall_mse_mean if standalone_rule in ['<', '<='] else overall_mse_mean
                 batch_decision_source[:] = 'standalone_reconstructor'
 
             # Store Results
@@ -88,7 +93,8 @@ def test(model, test_loader, thresholds, device, apply_gaussian=False):
                     'predicted_class': pred_str,
                     'classifier_probs': probs[i],
                     'reconstruction_error': overall_mse_mean[i].item(),
-                    'decision_source': str(batch_decision_source[i])
+                    'decision_source': str(batch_decision_source[i]),
+                    'combined_score': batch_combined_scores[i].item()
                 })
 
     return results
