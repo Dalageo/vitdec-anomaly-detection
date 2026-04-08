@@ -1,11 +1,3 @@
-"""
-Evaluating the model using ROC AUC score which measures the model's ability to distinguish between classes (in this case, anomalous vs. normal pixels), with a score of 1.0 representing perfect discrimination and a score of 0.5 representing random guessing.
-
-- **Detection scores** are used for identifying the presence of anomalies in the entire image without pinpointing their exact locations.
-
-- **Segmentation scores** provide a detailed map of anomaly likelihood across an image, useful for precisely locating anomalies
-"""
-
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -15,10 +7,12 @@ from scipy.ndimage import gaussian_filter
 from app.utils.log_utils import LoggerConfig
 from sklearn.metrics import precision_recall_fscore_support
 
-
 logger = LoggerConfig().get_logger(__name__)
 
 
+# -----------------------
+# Executes bound workflow
+# -----------------------
 def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     model.eval()
     MSE = nn.MSELoss(reduction='none')
@@ -30,7 +24,7 @@ def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     probs_list = []  
 
     with torch.no_grad():
-        for (x, label, _) in tqdm(bound_loader, desc="Testing(Bounds)"):
+        for (x, label, _) in tqdm(bound_loader, desc="Testing(Bound)"):
             x = x.to(device)
             label = label.to(device)
             
@@ -67,23 +61,23 @@ def get_bound_results(model, bound_loader, device, apply_gaussian=False):
             
     det_scores_np = np.array(det_scores)
     gt_list_np = np.array(gt_list)
-    thresholds = get_thresholds(det_scores_np, gt_list_np) 
             
     return {
-        'det_scores': det_scores_np,                        # List of anomaly scores
-        'gt_list': gt_list_np,                              # List of ground truth labels
-        'test_imgs': np.array(test_imgs),                   # Original images
-        'recon_imgs': np.array(recon_imgs),                 # Reconstructed images
-        'probs_list': np.concatenate(probs_list, axis=0),   # Classifier probability predictions
-        'thresholds': thresholds                            # Overlap bounds and thresholds
+        'det_scores': det_scores_np,                             # List of anomaly scores
+        'gt_list': gt_list_np,                                   # List of ground truth labels
+        'test_imgs': np.array(test_imgs),                        # Original images
+        'recon_imgs': np.array(recon_imgs),                      # Reconstructed images
+        'probs_list': np.concatenate(probs_list, axis=0),        # Classifier probability predictions
+        'thresholds': get_thresholds(det_scores_np, gt_list_np)  # Overlap bounds and thresholds
      }
     
     
 
+# ------------------------------
+# Decision Boundary Calculations
+# ------------------------------
 def get_optimal_threshold(det_scores, gt_list):
-    """Finds the single threshold that maximizes the F1-score.
-    Used strictly to establish a baseline. This demonstrates the limitations 
-    of a single threshold and justifies the need for the hybrid approach."""
+    """Finds the single threshold that maximizes the F1-score across the entire score range."""
     
     normal_scores = det_scores[gt_list == 0]
     best_f1 = -np.inf
@@ -105,12 +99,14 @@ def get_optimal_threshold(det_scores, gt_list):
     return {"threshold": float(best_threshold), "rule": ">="}
 
 
+
 def get_thresholds(det_scores, gt_list):
-    """Calculates the overlapping score range between normal and anomalous samples.
+    """Calculates the overlapping score range between normal and anomalous samples to define a decision boundary.
+    Identifies ranges where scores are uniquely normal or anomalous and isolates the overlapping 'classifier_range' for ambiguous cases."""
     
-    Identifies safe thresholds for obvious cases and isolates the overlapping 
-    'classifier_range' where the classifier will be applied. It also calculates 
-    the optimal F1 threshold for the reconstructor as a standalone baseline."""
+    if len(np.unique(gt_list)) < 2:
+        logger.warning("⚠️ Only one class found in gt_list. Cannot calculate overlap.")
+        return None
     
     normal_scores = det_scores[gt_list == 0]
     anomalous_scores = det_scores[gt_list == 1]

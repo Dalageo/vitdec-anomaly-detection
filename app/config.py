@@ -4,7 +4,7 @@ from PIL import Image
 from torchvision import transforms as T
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLOT_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'training_curves.png')
+PLOT_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints')
 LOG_OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'training_log.txt')
 CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, 'app', 'checkpoints', 'checkpoint.pt')
 

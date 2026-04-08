@@ -20,7 +20,6 @@ class Visualizer:
     def __init__(self):
         self.mean = MEAN
         self.std = STD
-        
         self.plot_output_path = PLOT_OUTPUT_PATH
 
     # Denormalize a tensor image
@@ -131,14 +130,14 @@ class Visualizer:
         plt.tight_layout()
         
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'training_curves.png'), dpi=300)
         
         plt.show()
         plt.close(fig)
         
         
-    def plot_anomaly_score_distribution(self, det_scores, gt_list, save_plot=None):
+    def plot_anomaly_score_distribution(self, det_scores, gt_list, save_plot: bool=False):
         """Plots the histogram and KDE (Kernel Density Estimate) of anomaly scores 
         for Normal vs. Anomalous classes."""
         
@@ -171,14 +170,14 @@ class Visualizer:
         plt.grid(True, linestyle='--', alpha=0.5)
 
         if save_plot:
-            os.makedirs(os.path.dirname(self.plot_output_path), exist_ok=True)
-            plt.savefig(self.plot_output_path, dpi=300)
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'anomaly_score_distribution.png'), dpi=300)
             
         plt.show()
         plt.close()
         
         
-    def plot_bound_confusion_matrices(self, bound_results):
+    def plot_bound_confusion_matrices(self, bound_results, save_plot: bool=False):
         """Plots side-by-side confusion matrices for the Reconstructor and Classifier.
         This allows for a direct visual and statistical comparison between the 
         baseline reconstructor (using the optimal threshold) and the standalone classifier."""
@@ -241,11 +240,15 @@ class Visualizer:
         ax[1].set_xlabel('Predicted Labels')
         ax[1].set_ylabel('True Labels')
 
+        if save_plot:
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'bound_confusion_matrices.png'), dpi=300)
+            
         plt.tight_layout()
         plt.show()
         
 
-    def plot_bound_combined_confusion_matrix(self, bound_results):
+    def plot_bound_combined_confusion_matrix(self, bound_results, save_plot: bool=False):
         """Plots a single confusion matrix for the combined Reconstructor + Classifier model.
         Applies strict thresholding for obvious cases and applies the classifier 
         only when anomaly scores fall within the overlapping bounds."""
@@ -304,8 +307,8 @@ class Visualizer:
             gt_array, combined_preds, average='binary', zero_division=0)
         cm = confusion_matrix(gt_array, combined_preds)
         
-        logger.info(f'Combined Model - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
-        logger.info(f'Combined Model - AUROC Score: {combined_auroc:.3f}')
+        logger.info(f'Combined Model(Bound Set) - Accuracy: {acc:.4f} --> {acc * 100:.2f}%')
+        logger.info(f'Combined Model(Bound Set) - AUROC Score: {combined_auroc:.3f}')
         metrics_text = f'Accuracy: {acc*100:.1f}% | Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}'
 
         # Plotting
@@ -318,34 +321,58 @@ class Visualizer:
         plt.xlabel('Predicted Labels')
         plt.ylabel('True Labels')
         
+        if save_plot:
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'bound_combined_confusion_matrix.png'), dpi=300)
+            
         plt.tight_layout()
         plt.show()
         
         
-    def plot_eval_combined_confusion_matrix(self, test_results):
+    def plot_test_combined_confusion_matrix(self, test_results, save_plot: bool=False):
         """Evaluates and visualizes the performance of the combined anomaly detection model."""
+        true_labels = np.array([r['true_label'] for r in test_results])
+        predicted_labels = np.array([r['predicted_label'] for r in test_results])
         
+        # Calculate metrics
+        cm = confusion_matrix(true_labels, predicted_labels)
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision4, recall4, f14, _ = precision_recall_fscore_support(true_labels, predicted_labels, average='binary', zero_division=0)
+
+        logger.info(f'Combined Model(Test Set) - Accuracy: {accuracy:.4f} --> {accuracy * 100:.2f}%')
+        if len(test_results) > 0 and 'combined_score' in test_results[0]: 
+            test_scores = np.array([r['combined_score'] for r in test_results]) 
+            test_auroc = roc_auc_score(true_labels, test_scores)
+            logger.info(f'Combined Model(Test Set) - AUROC Score: {test_auroc:.3f}')
+        else:
+            test_auroc = roc_auc_score(true_labels, predicted_labels)
+            logger.info(f'Combined Model(Test Set) - AUROC Score: {test_auroc:.3f} (Calculated from binary predictions)')
+            
         tn_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
         tn_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
+        logger.info("")
         logger.info(f"True Negatives (Correctly called Normal): {len(tn_recon) + len(tn_cls)}")
         logger.info(f"- {len(tn_recon)} verified by Reconstructor bounds")
         logger.info(f"- {len(tn_cls)} verified by Classifier")
 
         fp_recon = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
         fp_cls = [r for r in test_results if r['true_label'] == 0 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
-        logger.info(f"\nFalse Positives (Wrongly called Abnormal): {len(fp_recon) + len(fp_cls)}")
+        logger.info("")
+        logger.info(f"False Positives (Wrongly called Abnormal): {len(fp_recon) + len(fp_cls)}")
         logger.info(f"- {len(fp_recon)} wrongly flagged by Reconstructor bounds")
         logger.info(f"- {len(fp_cls)} wrongly flagged by Classifier")
 
         fn_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 0]
         fn_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 0]
-        logger.info(f"\nFalse Negatives (Missed Anomalies): {len(fn_recon) + len(fn_cls)}")
+        logger.info("")
+        logger.info(f"False Negatives (Missed Anomalies): {len(fn_recon) + len(fn_cls)}")
         logger.info(f"- {len(fn_recon)} missed because Reconstructor bounds were too low")
         logger.info(f"- {len(fn_cls)} missed because Classifier guessed wrong")
 
         tp_recon = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'recon_threshold_rule' and r['predicted_label'] == 1]
         tp_cls = [r for r in test_results if r['true_label'] == 1 and r['decision_source'] == 'classifier' and r['predicted_label'] == 1]
-        logger.info(f"\nTrue Positives (Correctly caught Anomalies): {len(tp_recon) + len(tp_cls)}")
+        logger.info("")
+        logger.info(f"True Positives (Correctly caught Anomalies): {len(tp_recon) + len(tp_cls)}")
         logger.info(f"- {len(tp_recon)} caught by Reconstructor bounds")
         logger.info(f"- {len(tp_cls)} caught by Classifier\n")
 
@@ -353,17 +380,23 @@ class Visualizer:
         predicted_labels = np.array([r['predicted_label'] for r in test_results])
 
         # Calculate metrics
-        cm4 = confusion_matrix(true_labels, predicted_labels)
+        cm = confusion_matrix(true_labels, predicted_labels)
         accuracy = accuracy_score(true_labels, predicted_labels)
         precision4, recall4, f14, _ = precision_recall_fscore_support(true_labels, predicted_labels, average='binary', zero_division=0)
         final_metrics_text = f'Accuracy: {accuracy*100:.1f}% | Precision: {precision4:.2f} | Recall: {recall4:.2f} | F1 Score: {f14:.2f}'
 
         # Plotting
         plt.figure(figsize=(8, 6))
-        sns.heatmap(cm4, annot=True, fmt='d', cmap='Blues', 
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                     xticklabels=['Normal', 'Abnormal'], 
                     yticklabels=['Normal', 'Abnormal'])
         plt.xlabel('Predicted Labels')
         plt.ylabel('True Labels')
         plt.title(f'Confusion Matrix - Final Combined Model\n{final_metrics_text}')
+        
+        if save_plot:
+            os.makedirs(self.plot_output_path, exist_ok=True)
+            plt.savefig(os.path.join(self.plot_output_path, 'test_combined_confusion_matrix.png'), dpi=300)
+        
+        plt.tight_layout()
         plt.show()
