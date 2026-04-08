@@ -10,6 +10,9 @@ from sklearn.metrics import precision_recall_fscore_support
 logger = LoggerConfig().get_logger(__name__)
 
 
+# -----------------------
+# Executes bound workflow
+# -----------------------
 def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     model.eval()
     MSE = nn.MSELoss(reduction='none')
@@ -70,10 +73,11 @@ def get_bound_results(model, bound_loader, device, apply_gaussian=False):
     
     
 
+# ------------------------------
+# Decision Boundary Calculations
+# ------------------------------
 def get_optimal_threshold(det_scores, gt_list):
-    """Finds the single threshold that maximizes the F1-score.
-    Used strictly to establish a baseline. This demonstrates the limitations 
-    of a single threshold and justifies the need for the hybrid approach."""
+    """Finds the single threshold that maximizes the F1-score across the entire score range."""
     
     normal_scores = det_scores[gt_list == 0]
     best_f1 = -np.inf
@@ -95,12 +99,14 @@ def get_optimal_threshold(det_scores, gt_list):
     return {"threshold": float(best_threshold), "rule": ">="}
 
 
+
 def get_thresholds(det_scores, gt_list):
-    """Calculates the overlapping score range between normal and anomalous samples.
+    """Calculates the overlapping score range between normal and anomalous samples to define a decision boundary.
+    Identifies ranges where scores are uniquely normal or anomalous and isolates the overlapping 'classifier_range' for ambiguous cases."""
     
-    Identifies safe thresholds for obvious cases and isolates the overlapping 
-    'classifier_range' where the classifier will be applied. It also calculates 
-    the optimal F1 threshold for the reconstructor as a standalone baseline."""
+    if len(np.unique(gt_list)) < 2:
+        logger.warning("⚠️ Only one class found in gt_list. Cannot calculate overlap.")
+        return None
     
     normal_scores = det_scores[gt_list == 0]
     anomalous_scores = det_scores[gt_list == 1]

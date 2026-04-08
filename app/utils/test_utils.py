@@ -7,6 +7,9 @@ import torch.nn.functional as F
 from scipy.ndimage import gaussian_filter
 
 
+# -------------------------
+# Executes testing workflow
+# -------------------------
 def test(model, test_loader, thresholds, device, apply_gaussian=False):
     """Inference function that applies the combined Reconstructor + Classifier logic,
     using pre-calculated thresholds."""
