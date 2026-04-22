@@ -60,7 +60,7 @@ AUGMENTATION_CONFIG = {
                     T.ToTensor(),
                     ],
             },
-            "unsupervised": { 
+            "self_supervised": { 
                 "augmentation": True,
                 "augmentation_transforms": [
                     T.Resize((IMG_SIZE, IMG_SIZE), Image.LANCZOS),

@@ -60,7 +60,7 @@ class MVTecDataset(Dataset):
         img_dir = os.path.join(self.dataset_path, self.phase)
         image_extensions = ('.png', '.jpg', '.jpeg')
 
-        # Base/Normal images (class -1 --> unsupervised training)
+        # Base/Normal images (class -1 --> self-supervised training)
         if self.is_train:
             base_img_path = os.path.join(img_dir, 'base')
             if os.path.isdir(base_img_path):
@@ -68,7 +68,7 @@ class MVTecDataset(Dataset):
                 x.extend(base_img_paths)
                 # Assign label -1
                 y.extend([-1] * len(base_img_paths))
-                # Add unsupervised for category
+                # Add self-supervised for category
                 category.extend(['base'] * len(base_img_paths))
 
         # Normal images (class 0 --> supervised training)
@@ -148,20 +148,20 @@ class MVTecDataModule:
         supervised_list = supervised_cfg.get("augmentation_transforms") if supervised_cfg.get("augmentation") else basic_transforms
         transform_supervised = T.Compose(supervised_list)
         
-        # Unsupervised
-        unsupervised_cfg = train_cfg.get("unsupervised")
-        unsupervised_list = unsupervised_cfg.get("augmentation_transforms") if unsupervised_cfg.get("augmentation") else basic_transforms
-        transform_unsupervised = T.Compose(unsupervised_list)
+        # Self-supervised
+        self_supervised_cfg = train_cfg.get("self_supervised")
+        self_supervised_list = self_supervised_cfg.get("augmentation_transforms") if self_supervised_cfg.get("augmentation") else basic_transforms
+        transform_self_supervised = T.Compose(self_supervised_list)
         
         # Anomaly (No augmentation)
         transform_supervised_anomaly = T.Compose(basic_transforms)
 
         self.train_transforms = {
-            'base': transform_unsupervised,
+            'base': transform_self_supervised,
             'normal': transform_supervised,
             'anomaly': transform_supervised_anomaly,
         }
-        self.test_transforms = {'test': transform_unsupervised}
+        self.test_transforms = {'test': transform_self_supervised}
 
 
     def _setup_data(self, ):

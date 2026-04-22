@@ -203,7 +203,7 @@ class VisionTransformer(nn.Module):
             return logits, features_output  # Return logits and the features
         else:
             features_output = features[:, 1:]  # Use only the non-CLS token features
-            return features_output  # For unsupervised tasks where classification isn't needed
+            return features_output  # For self-supervised tasks where classification isn't needed
 
 
 # -------------
