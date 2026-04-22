@@ -1,6 +1,18 @@
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/3a32f78f-215c-45dd-ac52-b558364eb89f" width="900" />
+</div>
+
+<div align="center">
+  <a href="https://www.python.org/downloads/release/python-3110/" target="_blank">
+  <img src="https://img.shields.io/badge/Python-3.11-blue.svg" alt="Python 3.11"></a>
+  <a href="https://github.com/Dalageo/vitdec-anomaly-detection/blob/prd/LICENSE" target="_blank">
+    <img src="https://img.shields.io/badge/License-AGPL%20v3-800080" alt="License: AGPLv3"></a>
+  <img src="https://img.shields.io/github/stars/Dalageo/vitdec-anomaly-detection?style=social" alt="GitHub stars">
+</div> 
+
 # ViT-Decoder Anomaly Detection
 
-This repository contains the code and findings for the thesis project: "Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging." The research explores a Vision Transformer (ViT) approach to identify anomalies within Laser Metal Deposition (LMD) images.
+This repository contains the code and findings for the thesis project: **"Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging."** The research explores a [Vision Transformer (ViT)](https://arxiv.org/pdf/2010.11929) approach to identify anomalies within Laser Metal Deposition (LMD) images.
 
 While Convolutional Neural Networks (CNNs) are the standard for finding defects in the computer vision sector, Transformer-based models remain largely underexplored in this domain. To bridge this gap, this project introduces a custom ViT-Decoder architecture designed to analyze melt pool images and cross-reference predictions with existing CNN models.
 
@@ -8,126 +20,83 @@ Evaluated on LMD melt pool images, the model achieved **99.78% accuracy** on the
 
 📌 *The melt pool image dataset used to achieve these results is not provided in this repository. For more information about the thesis, visit: [Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging](https://www.diva-portal.org/smash/record.jsf?pid=diva2%3A1886506&dswid=7365)*
 
-## Dataset Structure & Pre-processing
 
-### Directory Layout
 
-The dataset follows a structured directory layout where the split between training and test data is defined at the folder level:
+## 🛠️ Workflow Logic
 
-```
-dataset/
-├── train/
-│   ├── base/       # Unlabeled (unsupervised) melt pool images
-│   ├── normal/     # Labeled normal melt pool images
-│   └── anomaly/    # Labeled anomalous melt pool images
-└── test/
-    ├── normal/     # Normal melt pool images for evaluation
-    └── anomaly/    # Anomalous melt pool images for evaluation
-```
+The model combines a **Vision Transformer (ViT-Base/16)** encoder with a **Convolutional Transpose Decoder**. The ViT encoder produces two outputs in parallel: a **CLS token** for classification and **patch embeddings** for reconstruction. This dual-head design allows the model to simultaneously learn *what* is anomalous (classifier) and *how* normal images should look (reconstructor). 
 
-### Label Semantics
+The workflow below illustrates the solution that ultimately drove the best results: a hybrid Supervised-Reconstructive approach. By using Self-Supervised Learning to reconstruct features from base data, combined with Supervised Learning for classification between labels 0 and 1, this dual-path logic maximizes overall anomaly detection accuracy.
 
-Each image is assigned an integer label based on its source folder and intended role in training:
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/ffaa58cb-fbfb-4286-8b7c-57d52770bc51" width="700" />
+</div>
 
-| Folder | Label | Category | Purpose |
-|--------|-------|----------|---------|
-| `train/base/` | `-1` | `base` | Unsupervised reconstruction — model learns to faithfully reconstruct normal melt pool morphology without class supervision |
-| `train/normal/` | `0` | `normal` | Supervised — used for both reconstruction loss and classification loss |
-| `train/anomaly/` | `1` | `anomaly` | Supervised — used for classification loss only (not reconstruction) |
-| `test/normal/` | `0` | `test` | Evaluation |
-| `test/anomaly/` | `1` | `test` | Evaluation |
+### 1️⃣ Feature Extraction
+The process begins when an **Input Image** is fed into the **Vision Transformer** (using the ViT-Base/16 configuration initialized from `vit_base_patch16_384.npz` weights). This encoder extracts visual features and splits the output into two parallel streams:
+* **Classification Path:** Utilizes the CLS token logits.
+* **Reconstruction Path:** Utilizes the extracted patch embeddings.
 
-This three-tier labeling scheme is central to the training strategy: the reconstruction objective learns exclusively from normal-looking samples (`base` + `normal`), while the classification objective learns the decision boundary between `normal` and `anomaly`.
+### 2️⃣ The Reconstruction Check
+In the reconstruction path, the **Extracted Features** are routed to a Convolutional Transpose **Decoder**, which attempts to rebuild the image. The system then evaluates the difference between the input and the output at the **Check Reconstruction Error Bound** stage:
+* **Error Outside Bound:** If the reconstruction error is high, it means the model is struggling to process unfamiliar, anomalous patterns. The workflow immediately bypasses the classifier and flags the image as **Abnormal**.
+* **Error Within Bound:** If the image passes this initial structural test, the decision is delegated to the classification path (indicated by the dashed line).
 
-### Image Transforms
+### 3️⃣ The Classification Head
+If the image triggers the second stage, the **CLS logits output** from the encoder is processed through a **Softmax Activation** function. This classification head leverages the ViT's learned representations to catch more subtle abnormalities that passed the reconstruction test, outputting the final **Class** as either **Normal** or **Abnormal**.
 
-All images are resized to **384 × 384** pixels using the LANCZOS resampling filter, matching the ViT-Base/16 input resolution.
+**Summary:** The model catches distinct structural anomalies using the reconstruction error first, while relying on the classifier to capture more nuanced defects.
 
-| Transform Pipeline | Applied To | Operations |
-|--------------------|------------|------------|
-| **Supervised (Normal)** | `train/normal/` | Resize → RandomHorizontalFlip(p=0.5) → ToTensor |
-| **Unsupervised (Base)** | `train/base/` | Resize → RandomHorizontalFlip(p=0.5) → ToTensor |
-| **Supervised (Anomaly)** | `train/anomaly/` | Resize → ToTensor → Normalize(μ=0.5, σ=0.5) |
-| **Test / Bound** | `test/*` | Resize → ToTensor |
+---
 
-Normalization with `μ = 0.5` and `σ = 0.5` per channel maps pixel values from `[0, 1]` to `[-1, 1]`, aligning with the Decoder's `Tanh` output activation.
+## Dataset Layout & Structure
 
-### Data Splitting Strategy
+To ensure compatibility with the custom data loaders and the hybrid training strategy, your dataset must be organized into the following directory structure, where each folder serves a specific role in teaching the Vision Transformer and Decoder:
 
-The evaluation set (`test/`) is further split into two disjoint subsets using **stratified sampling** (preserving class ratios):
+| Folder | Label | Category | Training Type | Model Objective |
+|--------|-------|----------|---------------|-----------------|
+| `train/base/` | `-1` | `base` | Self-Supervised | **Reconstruction Only:** Learns general, healthy image features by reconstructing the inputs. No classification occurs here. |
+| `train/normal/` | `0` | `normal` | Supervised (Multi-Task) | **Dual-Task:** Learns to both reconstruct images and classify them as "Normal" (0). |
+| `train/anomaly/`| `1` | `anomaly` | Supervised | **Classification Only:** Learns to identify defects (1). Strictly excluded from the reconstruction task to prevent the model from learning how to reconstruct anomalies. |
+| `test/normal/` | `0` | `test` | Evaluation | Verifies reconstruction accuracy and measures the false-positive classification rate. |
+| `test/anomaly/` | `1` | `test` | Evaluation | Verifies defect detection capability and evaluates reconstruction error thresholds. |
+
+This three-tier labeling scheme is the core of the hybrid approach: 
+- **The Reconstruction Objective** learns exclusively from normal-looking samples (`base` + `normal`). Because it is never taught how to reconstruct a defect, the model naturally produces high reconstruction errors when fed an anomalous image later.
+- **The Classification Objective** learns the explicit decision boundary between normal and anomaly.
+
+### Data Splitting
+
+The training and evaluation sets are split internally to optimize and properly evaluate the model using **stratified sampling** (preserving class ratios):
 
 | Subset | Source | Ratio | Purpose |
 |--------|--------|-------|---------|
 | **Training** | `train/` | 85% of normal + base | Model parameter optimization |
 | **Validation** | `train/` | 15% of normal + base | Early stopping & scheduler decisions |
-| **Bound** | `test/` | 50% | Calibrate decision thresholds (overlap analysis) |
-| **Test** | `test/` | 50% | Final held-out evaluation |
+| **Bound** | `test/` | 50% | Identify decision thresholds |
+| **Test** | `test/` | 50% | Final evaluation |
 
-The **Bound** subset is critical: it is used to calculate the reconstruction-score distributions for normal vs. anomalous samples and to define the decision boundaries *before* the model ever sees the final Test subset. This ensures that threshold calibration does not leak information from the evaluation set.
+> **Note:** The **Bound** subset is critical. It is used to calculate the reconstruction-score distributions for normal vs. anomalous samples and to define the decision boundaries *before* the model ever sees the final Test subset.
 
----
 
 ## ViT-Decoder Architecture
 
-### High-Level Overview
+### Workflow Overview
 
 The model combines a **Vision Transformer (ViT-Base/16)** encoder with a **Convolutional Transpose Decoder**. The ViT encoder produces two outputs in parallel: a **CLS token** for classification and **patch embeddings** for reconstruction. This dual-head design allows the model to simultaneously learn *what* is anomalous (classifier) and *how* normal images should look (reconstructor).
 
-```
-Input Image (3 × 384 × 384)
-        │
-        ▼
-┌─────────────────────┐
-│   Patch Embedding    │  Conv2d(3, 768, kernel=16, stride=16)
-│   576 patches        │  Each patch: 16×16 pixels → 768-dim vector
-└─────────────────────┘
-        │
-        ▼
-┌─────────────────────┐
-│  [CLS] + Patches     │  Prepend learnable CLS token → 577 tokens
-│  + Position Embed    │  Add positional embeddings
-└─────────────────────┘
-        │
-        ▼
-┌─────────────────────┐
-│  12 Transformer      │  Multi-Head Self-Attention (12 heads)
-│  Encoder Blocks      │  + MLP (768 → 3072 → 768) + LayerNorm
-└─────────────────────┘
-        │
-        ├──── CLS token (index 0) ──► Linear(768, 2) ──► Class Logits
-        │
-        └──── Patch tokens (1..576) ──► Decoder ──► Reconstructed Image
-```
 
-### 1. Vision Transformer Encoder
 
-The encoder follows the standard **ViT-Base/16** configuration, initialized from pre-trained weights (`vit_base_patch16_384.npz`):
 
-| Parameter | Value |
-|-----------|-------|
-| Image Size | 384 × 384 |
-| Patch Size | 16 × 16 |
-| Number of Patches | 576 (24 × 24 grid) |
-| Embedding Dimension | 768 |
-| Transformer Depth | 12 blocks |
-| Attention Heads | 12 |
-| MLP Ratio | 4× (hidden dim = 3072) |
-| Activation | GELU |
 
-**Patch Embedding:** The input image is divided into a grid of 16×16-pixel patches. A convolutional projection (`Conv2d` with `kernel_size=16`, `stride=16`) maps each patch into a 768-dimensional embedding. For a 384×384 image, this produces **576 patch tokens**.
 
-**CLS Token & Positional Encoding:** A learnable `[CLS]` token is prepended to the sequence, yielding 577 tokens total. Learnable positional embeddings are added to preserve spatial information.
 
-**Self-Attention Blocks:** Each of the 12 Transformer blocks applies:
-1. **Layer Normalization** (pre-norm)
-2. **Multi-Head Self-Attention** — queries, keys, and values are computed jointly via a fused `QKV` linear layer, then split across 12 heads (head dim = 64). Attention scores are computed as:
 
-$$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
 
-3. **Residual connection** + **Drop Path** (stochastic depth)
-4. **Layer Normalization**
-5. **Feed-Forward MLP** (768 → 3072 → 768 with GELU activation)
-6. **Residual connection** + **Drop Path**
+
+
+
+
 
 ### 2. Dual-Head Output
 
