@@ -1,6 +1,6 @@
 # ViT-Decoder Anomaly Detection
 
-This repository contains the code and findings from a thesis project exploring a **Vision Transformer (ViT)** approach for anomaly detection in **Laser Metal Deposition (LMD)**.
+This repository contains the code and findings for the thesis project: "Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging." The research explores a Vision Transformer (ViT) approach to identify anomalies within Laser Metal Deposition (LMD) images.
 
 While Convolutional Neural Networks (CNNs) are the standard for finding defects in the computer vision sector, Transformer-based models remain largely underexplored in this domain. To bridge this gap, this project introduces a custom ViT-Decoder architecture designed to analyze melt pool images and cross-reference predictions with existing CNN models.
 
