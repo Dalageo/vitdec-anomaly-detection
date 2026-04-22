@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/github/stars/Dalageo/vitdec-anomaly-detection?style=social" alt="GitHub stars">
 </div> 
 
-# ViT-Decoder Anomaly Detection
+# ViT-Decoder for Anomaly Detection
 
 This repository contains the code and findings for the thesis project: **"Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging."** The research explores a [Vision Transformer (ViT)](https://arxiv.org/pdf/2010.11929) approach to identify anomalies within Laser Metal Deposition (LMD) images.
 
@@ -29,7 +29,7 @@ The model combines a **Vision Transformer (ViT-Base/16)** encoder with a **Convo
 The workflow below illustrates the solution that ultimately drove the best results: a hybrid Supervised-Reconstructive approach. By using Self-Supervised Learning to reconstruct features from base data, combined with Supervised Learning for classification between labels 0 and 1, this dual-path logic maximizes overall anomaly detection accuracy.
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/ffaa58cb-fbfb-4286-8b7c-57d52770bc51" width="700" />
+  <img src="https://github.com/user-attachments/assets/ffaa58cb-fbfb-4286-8b7c-57d52770bc51" width="600" />
 </div>
 
 ### 1️⃣ Feature Extraction
@@ -144,7 +144,6 @@ For each test image:
 
 <br>
 
-
 ## 🏗️ Dataset Structure 
 
 ### Dataset Configuration
@@ -206,6 +205,8 @@ python -m app.train
 python -m app.test
 ```
 
+<br>
+
 ## 📁 Project Structure
 
 ```
@@ -232,6 +233,29 @@ python -m app.test
 └── README.md
 ```
 
+<br>
+
+## ✨ Acknowledgments
+
+Special thanks to the teams behind the open-source code that made this project possible: [AnoViT: Unsupervised Anomaly Detection and Localization with Vision Transformer-based Encoder-Decoder](https://arxiv.org/pdf/2203.10808)
+
+<br>
+
+## ⚖️ License
+
+This repository utilizes components with different licenses:
+
+* **The Code & Documentation:** Licensed under the **[AGPL-3.0 license](https://www.gnu.org/licenses/agpl-3.0.en.html)**.
+    > The AGPL-3.0 license was chosen to promote open collaboration, ensure transparency, and require that any modifications or improvements must also be shared under the same license, with appropriate acknowledgment.
+
+<div align="center">
+  <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
+    <img src="https://github.com/user-attachments/assets/f3c6face-aa86-45da-8d20-d8ae25e49e28" alt="AGPLv3-Logo" width="200""></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://www.apache.org/licenses/LICENSE-2.0">
+    <img src="https://github.com/user-attachments/assets/bcf30286-f8b7-488a-8300-ec2464090c33" alt="Apache License 2.0" width="200" height="100"></a>
+</div>
+
 ## Citation
 
 If you use this code or find this research helpful in your work, please cite the associated Master's thesis:
@@ -244,3 +268,4 @@ If you use this code or find this research helpful in your work, please cite the
   url = {https://www.diva-portal.org/smash/get/diva2:1886506/FULLTEXT01.pdf},
   year = {2024}
 }
+```
