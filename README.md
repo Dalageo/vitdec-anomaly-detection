@@ -145,7 +145,7 @@ For each test image:
 <br>
 
 
-## 📁 Dataset & Project Structure
+## 🏗️ Dataset Structure 
 
 ### Dataset Configuration
 
@@ -176,33 +176,9 @@ The training and evaluation sets are split internally to optimize and properly e
 
 > **Note:** The **Bound** subset is critical. It is used to calculate the reconstruction-score distributions for normal vs. anomalous samples and to define the decision boundaries *before* the model ever sees the final Test subset.
 
-### Codebase Layout
+<br>
 
-```
-├── app/
-│   ├── config.py                 # Hyperparameters, paths, augmentation config
-│   ├── train.py                  # Training entry point
-│   ├── test.py                   # Evaluation entry point
-│   ├── model/
-│   │   ├── vit_decoder.py        # ViT encoder, Decoder, and ViTDecoder architecture
-│   │   └── weights.py            # Pre-trained weight loading & decoder initialization
-│   ├── utils/
-│   │   ├── load_dataset.py       # Dataset class, transforms, and data splitting
-│   │   ├── train_utils.py        # Trainer class with dual-objective training loop
-│   │   ├── bound_utils.py        # Threshold calibration & boundary computation
-│   │   ├── test_utils.py         # Combined inference with routing logic
-│   │   ├── visualizer.py         # Plotting: reconstructions, loss curves, confusion matrices
-│   │   └── log_utils.py          # Logger configuration & metric tracking
-│   └── checkpoints/              # Saved model weights & training logs
-├── dataset/                      # Melt pool image data (train/test splits)
-├── model_weights/                # Pre-trained ViT weights (.npz)
-├── scripts/
-│   └── deploy_prd.sh             # Production deployment script
-├── pyproject.toml                # Poetry dependency configuration
-└── README.md
-```
-
-## Setup & Usage
+## 💻 Setup & Usage
 
 ### Prerequisites
 
@@ -230,17 +206,41 @@ python -m app.train
 python -m app.test
 ```
 
-### Configuration
+## 📁 Project Structure
 
-All hyperparameters are centralized in `app/config.py`:
+```
+├── app/
+│   ├── config.py                 # Hyperparameters, paths, augmentation config
+│   ├── train.py                  # Training entry point
+│   ├── test.py                   # Evaluation entry point
+│   ├── model/
+│   │   ├── vit_decoder.py        # ViT encoder, Decoder, and ViTDecoder architecture
+│   │   └── weights.py            # Pre-trained weight loading & decoder initialization
+│   ├── utils/
+│   │   ├── load_dataset.py       # Dataset class, transforms, and data splitting
+│   │   ├── train_utils.py        # Trainer class with dual-objective training loop
+│   │   ├── bound_utils.py        # Threshold calibration & boundary computation
+│   │   ├── test_utils.py         # Combined inference with routing logic
+│   │   ├── visualizer.py         # Plotting: reconstructions, loss curves, confusion matrices
+│   │   └── log_utils.py          # Logger configuration & metric tracking
+│   └── checkpoints/              # Saved model weights & training logs
+├── dataset/                      # Melt pool image data (train/test splits)
+├── model_weights/                # Pre-trained ViT weights (.npz)
+├── scripts/
+│   └── deploy_prd.sh             # Production deployment script
+├── pyproject.toml                # Poetry dependency configuration
+└── README.md
+```
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `IMG_SIZE` | 384 | Input resolution |
-| `EPOCHS` | 50 | Maximum training epochs |
-| `BATCH_SIZE` | 16 | Samples per batch |
-| `LR_VIT` | 1e-5 | Encoder learning rate |
-| `LR_DEC` | 1e-3 | Decoder learning rate |
-| `AMP` | True | Automatic Mixed Precision |
-| `VAL_RATIO` | 0.15 | Validation split ratio |
-| `TEST_RATIO` | 0.5 | Bound/Test split ratio |
+## Citation
+
+If you use this code or find this research helpful in your work, please cite the associated Master's thesis:
+
+```bibtex
+@mastersthesis{Dalageorgos_Investigating_the_Performance_2024,
+  author = {Dalageorgos, Konstantinos},
+  month = may,
+  title = {{Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging}},
+  url = {https://www.diva-portal.org/smash/get/diva2:1886506/FULLTEXT01.pdf},
+  year = {2024}
+}
