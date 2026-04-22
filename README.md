@@ -20,7 +20,7 @@ Evaluated on LMD melt pool images, the model achieved **99.78% accuracy** on the
 
 📌 *The melt pool image dataset used to achieve these results is not provided in this repository. For more information about the thesis, visit: [Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging](https://www.diva-portal.org/smash/record.jsf?pid=diva2%3A1886506&dswid=7365)*
 
-
+<br>
 
 ## 🛠️ Workflow Logic
 
@@ -47,8 +47,7 @@ If the image triggers the second stage, the **CLS logits output** from the encod
 
 **Summary:** The model catches distinct structural anomalies using the reconstruction error first, while relying on the classifier to capture more nuanced defects.
 
-
-
+<br>
 
 ## 🎯 Training Strategy
 
@@ -64,8 +63,6 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{reconstruction}} + \mathcal{L}
 | $\mathcal{L}_{\text{cls}}$ | **Cross-Entropy Loss** | `normal` (y=0) and `anomaly` (y=1) samples | Teach the CLS token to discriminate between classes |
 
 > Anomaly images are **never** used for reconstruction. This is intentional: the decoder should only learn the distribution of normal images, so that anomalous inputs produce high reconstruction error.
-
-
 
 ### Selective Gradient Flow
 
@@ -97,9 +94,60 @@ Additional training controls:
 - **Early Stopping** with patience=5 and δ=0.00001 on the combined validation loss
 - **Automatic Mixed Precision (AMP)** enabled by default
 
+<br>
+
+## 📉 Threshold & Anomaly Detection Logic
+
+The inference pipeline uses a **two-phase evaluation** strategy: first identify thresholds on the Bound set, then apply those thresholds to the unseen Test set.
+
+### 1️⃣ Anomaly Score Calculation
+
+For each image, the reconstruction error (anomaly score) is computed as the **pixel-wise MSE** between the original and reconstructed image, averaged across channels and spatial dimensions:
+
+$$S_i = \frac{1}{C \cdot H \cdot W} \sum_{c,h,w} \left( x_{c,h,w}^{(i)} - \hat{x}_{c,h,w}^{(i)} \right)^2$$
+
+where $x^{(i)}$ is the original image and $\hat{x}^{(i)}$ is the decoder's reconstruction.
+
+> **Note:** While training uses L1 Loss for its gradient properties, the evaluation phase uses MSE to compute anomaly scores, as squared error amplifies larger deviations, making anomalies more separable.
+
+### 2️⃣ Decision Boundary Estimation (Bound Phase)
+
+Using the Bound subset (never seen during training), the system computes the score distributions for both classes and identifies three decision zones:
+
+```
+Score Axis ──────────────────────────────────────────────────────────►
+│◄── Definite Zone A ──►│◄── Overlap Zone ──►│◄── Definite Zone B ──►│
+│   (Reconstruction     │   (Ambiguous:      │   (Reconstruction     │
+│    alone decides)     │    Classifier      │    alone decides)     │
+│                       │    decides)        │                       │
+                   overlap_start         overlap_end
+```
+
+### 3️⃣ Combined Inference (Test Phase)
+
+At test time, each sample's anomaly score determines which decision-maker is used:
+
+```
+For each test image:
+    1. Compute reconstruction score S
+    2. Get CLS token class probabilities via Softmax
+    3. Route to decision logic:
+
+    if perfect_separation:
+        → Use standalone reconstructor threshold only
+    else:
+        if S < overlap_start  OR  S > overlap_end:
+            → Definite zone: Reconstructor decides (based on threshold rules)
+        else:
+            → Overlap zone: Classifier decides (argmax of CLS softmax)
+```
+
+<br>
 
 
-## 📁 Dataset Layout & Structure
+## 📁 Dataset & Project Structure
+
+### Dataset Configuration
 
 To ensure compatibility with the custom data loaders and the hybrid training strategy, your dataset must be organized into the following directory structure, where each folder serves a specific role in teaching the Vision Transformer and Decoder:
 
@@ -128,106 +176,7 @@ The training and evaluation sets are split internally to optimize and properly e
 
 > **Note:** The **Bound** subset is critical. It is used to calculate the reconstruction-score distributions for normal vs. anomalous samples and to define the decision boundaries *before* the model ever sees the final Test subset.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----
-
-## Threshold & Anomaly Detection Logic
-
-The inference pipeline uses a **two-phase evaluation** strategy: first calibrate thresholds on a held-out Bound set, then apply those thresholds to the unseen Test set.
-
-### Step 1 — Anomaly Score Calculation
-
-For each image, the reconstruction error (anomaly score) is computed as the **pixel-wise MSE** between the original and reconstructed image, averaged across channels and spatial dimensions:
-
-$$S_i = \frac{1}{C \cdot H \cdot W} \sum_{c,h,w} \left( x_{c,h,w}^{(i)} - \hat{x}_{c,h,w}^{(i)} \right)^2$$
-
-where $x^{(i)}$ is the original image and $\hat{x}^{(i)}$ is the decoder's reconstruction.
-
-> **Note:** While training uses L1 Loss for its gradient properties, the evaluation phase uses MSE to compute anomaly scores, as squared error amplifies larger deviations — making anomalies more separable.
-
-### Step 2 — Decision Boundary Estimation (Bound Phase)
-
-Using the Bound subset (never seen during training), the system computes the score distributions for both classes and identifies three decision zones:
-
-```
-Score Axis ──────────────────────────────────────────────────►
-
-│◄── Definite Zone A ──►│◄── Overlap Zone ──►│◄── Definite Zone B ──►│
-│   (Reconstruction      │   (Ambiguous:      │   (Reconstruction      │
-│    alone decides)       │    Classifier       │    alone decides)       │
-│                         │    decides)         │                         │
-                    overlap_start         overlap_end
-```
-
-**Boundary calculation logic:**
-
-1. **Compute score ranges** for both classes on the Bound set:
-   - Normal scores: $[\min_{\text{norm}},\ \max_{\text{norm}}]$
-   - Anomalous scores: $[\min_{\text{anom}},\ \max_{\text{anom}}]$
-
-2. **Identify the overlap region:**
-   - $\text{overlap\_start} = \max(\min_{\text{norm}},\ \min_{\text{anom}})$
-   - $\text{overlap\_end} = \min(\max_{\text{norm}},\ \max_{\text{anom}})$
-
-3. **Assign threshold rules** based on which class extends beyond the overlap:
-   - If anomalous scores extend *below* the overlap → scores below `overlap_start` are classified as **anomaly**
-   - If anomalous scores extend *above* the overlap → scores above `overlap_end` are classified as **anomaly**
-   - (Symmetrically for normal scores)
-
-4. **Standalone threshold (fallback):** An optimal single threshold is computed by sweeping 100 candidate values across the normal score range and selecting the one that maximizes the **F1-score**:
-
-$$\theta^* = \arg\max_{\theta} \ F_1\big(y,\ \mathbb{1}[S \geq \theta]\big)$$
-
-### Step 3 — Combined Inference (Test Phase)
-
-At test time, each sample's anomaly score determines which decision-maker is used:
-
-```
-For each test image:
-    1. Compute reconstruction score S
-    2. Get CLS token class probabilities via Softmax
-    3. Route to decision logic:
-
-    if perfect_separation:
-        → Use standalone reconstructor threshold only
-    else:
-        if S < overlap_start  OR  S > overlap_end:
-            → Definite zone: Reconstructor decides (based on threshold rules)
-        else:
-            → Overlap zone: Classifier decides (argmax of CLS softmax)
-```
-
-**Decision routing in detail:**
-
-| Score Region | Decision Source | Logic |
-|---|---|---|
-| Below overlap start | **Reconstructor** | Label assigned by pre-computed threshold rule (e.g., if anomalies have lower scores → anomaly) |
-| Within overlap range | **Classifier (CLS token)** | `argmax(softmax(logits))` — the ViT's classification head breaks the tie |
-| Above overlap end | **Reconstructor** | Label assigned by pre-computed threshold rule (e.g., if anomalies have higher scores → anomaly) |
-| Perfect separation | **Standalone Reconstructor** | F1-optimized threshold applied directly |
-
-This combined approach leverages the strengths of both model heads: the reconstructor provides a robust, distribution-based anomaly signal for clear-cut cases, while the classifier's learned decision boundary resolves ambiguous cases where reconstruction scores overlap between normal and anomalous samples.
-
----
-
-## Project Structure
+### Codebase Layout
 
 ```
 ├── app/
