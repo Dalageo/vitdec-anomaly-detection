@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/github/stars/Dalageo/vitdec-anomaly-detection?style=social" alt="GitHub stars">
 </div> 
 
-# ViT-Decoder Anomaly Detection
+# ViT-Decoder for Anomaly Detection
 
 This repository contains the code and findings for the thesis project: **"Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging."** The research explores a [Vision Transformer (ViT)](https://arxiv.org/pdf/2010.11929) approach to identify anomalies within Laser Metal Deposition (LMD) images.
 
@@ -29,7 +29,7 @@ The model combines a **Vision Transformer (ViT-Base/16)** encoder with a **Convo
 The workflow below illustrates the solution that ultimately drove the best results: a hybrid Supervised-Reconstructive approach. By using Self-Supervised Learning to reconstruct features from base data, combined with Supervised Learning for classification between labels 0 and 1, this dual-path logic maximizes overall anomaly detection accuracy.
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/ffaa58cb-fbfb-4286-8b7c-57d52770bc51" width="700" />
+  <img src="https://github.com/user-attachments/assets/ffaa58cb-fbfb-4286-8b7c-57d52770bc51" width="600" />
 </div>
 
 ### 1️⃣ Feature Extraction
@@ -144,8 +144,7 @@ For each test image:
 
 <br>
 
-
-## 📁 Dataset & Project Structure
+## 🏗️ Dataset Structure 
 
 ### Dataset Configuration
 
@@ -176,33 +175,9 @@ The training and evaluation sets are split internally to optimize and properly e
 
 > **Note:** The **Bound** subset is critical. It is used to calculate the reconstruction-score distributions for normal vs. anomalous samples and to define the decision boundaries *before* the model ever sees the final Test subset.
 
-### Codebase Layout
+<br>
 
-```
-├── app/
-│   ├── config.py                 # Hyperparameters, paths, augmentation config
-│   ├── train.py                  # Training entry point
-│   ├── test.py                   # Evaluation entry point
-│   ├── model/
-│   │   ├── vit_decoder.py        # ViT encoder, Decoder, and ViTDecoder architecture
-│   │   └── weights.py            # Pre-trained weight loading & decoder initialization
-│   ├── utils/
-│   │   ├── load_dataset.py       # Dataset class, transforms, and data splitting
-│   │   ├── train_utils.py        # Trainer class with dual-objective training loop
-│   │   ├── bound_utils.py        # Threshold calibration & boundary computation
-│   │   ├── test_utils.py         # Combined inference with routing logic
-│   │   ├── visualizer.py         # Plotting: reconstructions, loss curves, confusion matrices
-│   │   └── log_utils.py          # Logger configuration & metric tracking
-│   └── checkpoints/              # Saved model weights & training logs
-├── dataset/                      # Melt pool image data (train/test splits)
-├── model_weights/                # Pre-trained ViT weights (.npz)
-├── scripts/
-│   └── deploy_prd.sh             # Production deployment script
-├── pyproject.toml                # Poetry dependency configuration
-└── README.md
-```
-
-## Setup & Usage
+## 💻 Setup & Usage
 
 ### Prerequisites
 
@@ -230,17 +205,67 @@ python -m app.train
 python -m app.test
 ```
 
-### Configuration
+<br>
 
-All hyperparameters are centralized in `app/config.py`:
+## 📁 Project Structure
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `IMG_SIZE` | 384 | Input resolution |
-| `EPOCHS` | 50 | Maximum training epochs |
-| `BATCH_SIZE` | 16 | Samples per batch |
-| `LR_VIT` | 1e-5 | Encoder learning rate |
-| `LR_DEC` | 1e-3 | Decoder learning rate |
-| `AMP` | True | Automatic Mixed Precision |
-| `VAL_RATIO` | 0.15 | Validation split ratio |
-| `TEST_RATIO` | 0.5 | Bound/Test split ratio |
+```
+├── app/
+│   ├── config.py                 # Hyperparameters, paths, augmentation config
+│   ├── train.py                  # Training entry point
+│   ├── test.py                   # Evaluation entry point
+│   ├── model/
+│   │   ├── vit_decoder.py        # ViT encoder, Decoder, and ViTDecoder architecture
+│   │   └── weights.py            # Pre-trained weight loading & decoder initialization
+│   ├── utils/
+│   │   ├── load_dataset.py       # Dataset class, transforms, and data splitting
+│   │   ├── train_utils.py        # Trainer class with dual-objective training loop
+│   │   ├── bound_utils.py        # Threshold calibration & boundary computation
+│   │   ├── test_utils.py         # Combined inference with routing logic
+│   │   ├── visualizer.py         # Plotting: reconstructions, loss curves, confusion matrices
+│   │   └── log_utils.py          # Logger configuration & metric tracking
+│   └── checkpoints/              # Saved model weights & training logs
+├── dataset/                      # Melt pool image data (train/test splits)
+├── model_weights/                # Pre-trained ViT weights (.npz)
+├── scripts/
+│   └── deploy_prd.sh             # Production deployment script
+├── pyproject.toml                # Poetry dependency configuration
+└── README.md
+```
+
+<br>
+
+## ✨ Acknowledgments
+
+Special thanks to the teams behind the open-source code that made this project possible: [AnoViT: Unsupervised Anomaly Detection and Localization with Vision Transformer-based Encoder-Decoder](https://arxiv.org/pdf/2203.10808)
+
+<br>
+
+## ⚖️ License
+
+This repository utilizes components with different licenses:
+
+* **The Code & Documentation:** Licensed under the **[AGPL-3.0 license](https://www.gnu.org/licenses/agpl-3.0.en.html)**.
+    > The AGPL-3.0 license was chosen to promote open collaboration, ensure transparency, and require that any modifications or improvements must also be shared under the same license, with appropriate acknowledgment.
+
+<div align="center">
+  <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
+    <img src="https://github.com/user-attachments/assets/f3c6face-aa86-45da-8d20-d8ae25e49e28" alt="AGPLv3-Logo" width="200""></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://www.apache.org/licenses/LICENSE-2.0">
+    <img src="https://github.com/user-attachments/assets/bcf30286-f8b7-488a-8300-ec2464090c33" alt="Apache License 2.0" width="200" height="100"></a>
+</div>
+
+## Citation
+
+If you use this code or find this research helpful in your work, please cite the associated Master's thesis:
+
+```bibtex
+@mastersthesis{Dalageorgos_Investigating_the_Performance_2024,
+  author = {Dalageorgos, Konstantinos},
+  month = may,
+  title = {{Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging}},
+  url = {https://www.diva-portal.org/smash/get/diva2:1886506/FULLTEXT01.pdf},
+  year = {2024}
+}
+```

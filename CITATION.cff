@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If this project was helpful, please cite the associated Master's thesis as below."
+title: "vitdec-anomaly-detection"
+authors:
+  - family-names: "Dalageorgos"
+    given-names: "Konstantinos"
+version: "1.0.0" 
+date-released: "2026-04-22"
+repository-code: "https://github.com/Dalageo/vitdec-anomaly-detection"
+license: "GNU Affero General Public License v3.0"
+
+preferred-citation:
+  type: thesis
+  authors:
+    - family-names: "Dalageorgos"
+      given-names: "Konstantinos"
+  title: "Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging"
+  institution:
+    name: "University West"
+    department: "Department of Engineering Science"
+    country: "SE"
+  year: 2024
+  month: 5
+  thesis-type: "Master's Thesis"
+  url: "https://www.diva-portal.org/smash/get/diva2:1886506/FULLTEXT01.pdf"
