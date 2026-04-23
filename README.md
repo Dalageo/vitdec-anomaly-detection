@@ -247,6 +247,7 @@ This project was conducted as part of my Master's thesis. I would like to extend
 * **University West:** To my academic supervisor, **Yongcui Mi**, for her expert assistance with the academic aspects of this research, and to the program coordinator, **Morgan Nilsen**, for his continuous support throughout the academic year.
 * **The Open-Source Community:** Special thanks to the researchers behind [AnoViT](https://arxiv.org/pdf/2203.10808) as their open-source code served as a tremendous help and a valuable foundation for this work, as well as to **Google** for releasing the pre-trained [ViT-Base/16 weights](https://huggingface.co/google/vit-base-patch16-384), and **Hugging Face** for hosting these models and providing the essential libraries.
 
+<br>
 <div align="center">
   <a href="https://www.gknaerospace.com/">
     <img src="https://github.com/user-attachments/assets/56cb0142-ca4e-4912-8b34-0e62b60fcc6c" alt="GKN" width="200"></a>
