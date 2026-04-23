@@ -5,6 +5,10 @@
 <div align="center">
   <a href="https://www.python.org/downloads/release/python-3110/" target="_blank">
   <img src="https://img.shields.io/badge/Python-3.11-blue.svg" alt="Python 3.11"></a>
+  <a href="https://pytorch.org/get-started/locally/" target="_blank">
+    <img src="https://img.shields.io/badge/PyTorch-2.9.1-orange.svg" alt="PyTorch 2.9.1"></a>
+  <a href="https://developer.nvidia.com/cuda-12-8-0-download-archive" target="_blank">
+  <img src="https://img.shields.io/badge/CUDA-12.8-brightgreen.svg" alt="CUDA 12.8"></a>
   <a href="https://github.com/Dalageo/vitdec-anomaly-detection/blob/prd/LICENSE" target="_blank">
     <img src="https://img.shields.io/badge/License-AGPL%20v3-800080" alt="License: AGPLv3"></a>
   <img src="https://img.shields.io/github/stars/Dalageo/vitdec-anomaly-detection?style=social" alt="GitHub stars">
@@ -33,7 +37,7 @@ The workflow below illustrates the solution that ultimately drove the best resul
 </div>
 
 ### 1️⃣ Feature Extraction
-The process begins when an **Input Image** is fed into the **Vision Transformer** (using the ViT-Base/16 configuration initialized from `vit_base_patch16_384.npz` weights). This encoder extracts visual features and splits the output into two parallel streams:
+The process begins when an **Input Image** is fed into the **Vision Transformer** (using the (ViT-Base/16)[https://huggingface.co/google/vit-base-patch16-384] configuration initialized from `vit_base_patch16_384.npz` weights). This encoder extracts visual features and splits the output into two parallel streams:
 * **Classification Path:** Utilizes the CLS token logits.
 * **Reconstruction Path:** Utilizes the extracted patch embeddings.
 
