@@ -162,6 +162,8 @@ This three-tier labeling scheme is the core of the hybrid approach:
 - **The Reconstruction Objective** learns exclusively from normal-looking samples (`base` + `normal`). Because it is never taught how to reconstruct a defect, the model naturally produces high reconstruction errors when fed an anomalous image later.
 - **The Classification Objective** learns the explicit decision boundary between normal and anomaly.
 
+> 💡 **Data Volume & Class Imbalance:** The self-supervised reconstruction path requires a proper volume of normal images to accurately map the "normal" manifold, so the `train/base/` directory should be heavily populated. This makes this hybrid architecture highly advantageous for real-world scenarios where there is **abundant normal data but very few anomalous samples**.
+
 ### Data Splitting
 
 The training and evaluation sets are split internally to optimize and properly evaluate the model using **stratified sampling** (preserving class ratios):
@@ -235,26 +237,39 @@ python -m app.test
 
 ## ✨ Acknowledgments
 
-Special thanks to the teams behind the open-source code that made this project possible: [AnoViT: Unsupervised Anomaly Detection and Localization with Vision Transformer-based Encoder-Decoder](https://arxiv.org/pdf/2203.10808)
+This project was conducted as part of my Master's thesis. I would like to extend my deepest gratitude to the individuals and organizations that made this research possible:
 
-<br>
+* **GKN Aerospace Sweden AB:** To the entire team for providing access to the PTC facilities and fostering a welcoming environment. A special thanks to my industrial supervisor, **Erik Sanderson-Gull**, for giving me the opportunity to undertake this project and for his invaluable guidance.
+* **University West:** To my academic supervisor, **Yongcui Mi**, for her expert assistance with the academic aspects of this research, and to the program coordinator, **Morgan Nilsen**, for his continuous support throughout the academic year.
+* **The Open-Source Community:** Special thanks to the researchers behind [AnoViT: Unsupervised Anomaly Detection and Localization with Vision Transformer-based Encoder-Decoder](https://arxiv.org/pdf/2203.10808). Their provided open-source code served as a tremendous help and a valuable foundation for this work.
+
+<div align="center">
+  <a href="https://www.gknaerospace.com/">
+    <img src="https://github.com/user-attachments/assets/56cb0142-ca4e-4912-8b34-0e62b60fcc6c" alt="GKN" width="200"></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://www.hv.se/en/">
+    <img src="https://github.com/user-attachments/assets/c5395123-7ce8-4f19-9d54-f0a9d75e31e8" alt="University West" width="200" ></a>
+</div>
 
 ## ⚖️ License
 
 This repository utilizes components with different licenses:
 
-* **The Code & Documentation:** Licensed under the **[AGPL-3.0 license](https://www.gnu.org/licenses/agpl-3.0.en.html)**.
-    > The AGPL-3.0 license was chosen to promote open collaboration, ensure transparency, and require that any modifications or improvements must also be shared under the same license, with appropriate acknowledgment.
+* **Code & Documentation:** Licensed under the **[AGPL-3.0 License](https://www.gnu.org/licenses/agpl-3.0.en.html)**.
+  > The AGPL-3.0 license was chosen to promote open collaboration, ensure transparency, and require that any modifications or improvements must also be shared under the same license, with appropriate acknowledgment.
 
+* **Adapted Components:** Portions of the underlying Vision Transformer architecture used in this project were adapted from [AnoViT](https://arxiv.org/abs/2203.10808), which is licensed under the **[Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/)** license.
+
+<br>
 <div align="center">
   <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
     <img src="https://github.com/user-attachments/assets/f3c6face-aa86-45da-8d20-d8ae25e49e28" alt="AGPLv3-Logo" width="200""></a>
     &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.apache.org/licenses/LICENSE-2.0">
-    <img src="https://github.com/user-attachments/assets/bcf30286-f8b7-488a-8300-ec2464090c33" alt="Apache License 2.0" width="200" height="100"></a>
+  <a href="https://creativecommons.org/licenses/by/4.0/">
+    <img src="https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by.png" alt="CC BY 4.0" width="200"></a>
 </div>
 
-## Citation
+## 📝 Citation
 
 If you use this code or find this research helpful in your work, please cite the associated Master's thesis:
 
