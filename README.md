@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/github/stars/Dalageo/vitdec-anomaly-detection?style=social" alt="GitHub stars">
 </div> 
 
-# ViT-Decoder for Anomaly Detection
+# ViT-Decoder for Anomaly Detection <img src="https://github.com/user-attachments/assets/47c5dbfb-4ff0-4102-83c7-1a8b60e02a5a" width="40">
 
 This repository contains the code and findings for the thesis project: **"Investigating the Performance of a Vision Transformer Model for Anomaly Detection in Laser Metal Deposition Imaging."** The research explores a [Vision Transformer (ViT)](https://arxiv.org/pdf/2010.11929) approach to identify anomalies within Laser Metal Deposition (LMD) images.
 
