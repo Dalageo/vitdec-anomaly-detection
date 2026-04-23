@@ -38,9 +38,9 @@ The process begins when an **Input Image** is fed into the **Vision Transformer*
 * **Reconstruction Path:** Utilizes the extracted patch embeddings.
 
 ### 2️⃣ The Reconstruction Check
-In the reconstruction path, the **Extracted Features** are routed to a Convolutional Transpose **Decoder**, which attempts to rebuild the image. The system then evaluates the difference between the input and the output at the **Check Reconstruction Error Bound** stage:
-* **Error Outside Bound:** If the reconstruction error is high, it means the model is struggling to process unfamiliar, anomalous patterns. The workflow immediately bypasses the classifier and flags the image as **Abnormal**.
-* **Error Within Bound:** If the image passes this initial structural test, the decision is delegated to the classification path (indicated by the dashed line).
+In the reconstruction path, the **Extracted Features** are routed to a Convolutional Transpose **Decoder**, which attempts to rebuild the image. The difference between the input and the output produces a reconstruction error at the **Check Reconstruction Error Bound** stage:
+* **Error Outside Bound:** If the reconstruction error falls outside the predefined range, the model cannot properly reconstruct the image due to unfamiliar anomalies. The workflow immediately bypasses the classifier and flags the image as **Abnormal**.
+* **Error Within Bound:** If the reconstruction error is within the predefined boundaries, the decision is delegated to the classification path (indicated by the dashed line).
 
 ### 3️⃣ The Classification Head
 If the image triggers the second stage, the **CLS logits output** from the encoder is processed through a **Softmax Activation** function. This classification head leverages the ViT's learned representations to catch more subtle abnormalities that passed the reconstruction test, outputting the final **Class** as either **Normal** or **Abnormal**.
@@ -62,7 +62,7 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{reconstruction}} + \mathcal{L}
 | $\mathcal{L}_{\text{recon}}$ | **L1 Loss** (Mean Absolute Error) | `base` (y=-1) and `normal` (y=0) samples | Teach the decoder to reconstruct normal melt pool morphology |
 | $\mathcal{L}_{\text{cls}}$ | **Cross-Entropy Loss** | `normal` (y=0) and `anomaly` (y=1) samples | Teach the CLS token to discriminate between classes |
 
-> Anomaly images are **never** used for reconstruction. This is intentional: the decoder should only learn the distribution of normal images, so that anomalous inputs produce high reconstruction error.
+> Anomaly images are **never** used for reconstruction during training. This is intentional: the decoder should only learn the distribution of normal images (self-supervised), so that anomalous inputs produce high reconstruction error.
 
 ### Selective Gradient Flow
 
@@ -87,7 +87,7 @@ Two separate Adam optimizers are used with distinct learning rates, reflecting t
 | Component | Optimizer | Learning Rate | Weight Decay | Role |
 |-----------|-----------|:---:|:---:|------|
 | ViT Encoder | Adam | 1e-5 | 1e-5 | Fine-tune pre-trained weights conservatively |
-| Decoder | Adam | 1e-3 | 1e-5 | Train from scratch — higher LR needed |
+| Decoder | Adam | 1e-3 | 1e-5 | Train from scratch - higher learning rate needed |
 
 Additional training controls:
 - **ReduceLROnPlateau** scheduler on the encoder's optimizer (factor=0.1, patience=2)
