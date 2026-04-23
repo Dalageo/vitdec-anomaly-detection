@@ -37,7 +37,7 @@ The workflow below illustrates the solution that ultimately drove the best resul
 </div>
 
 ### 1️⃣ Feature Extraction
-The process begins when an **Input Image** is fed into the **Vision Transformer** (using the (ViT-Base/16)[https://huggingface.co/google/vit-base-patch16-384] configuration initialized from `vit_base_patch16_384.npz` weights). This encoder extracts visual features and splits the output into two parallel streams:
+The process begins when an **Input Image** is fed into the **Vision Transformer** (using the ViT-Base/16 configuration initialized from `vit_base_patch16_384.npz` weights). This encoder extracts visual features and splits the output into two parallel streams:
 * **Classification Path:** Utilizes the CLS token logits.
 * **Reconstruction Path:** Utilizes the extracted patch embeddings.
 
@@ -245,7 +245,7 @@ This project was conducted as part of my Master's thesis. I would like to extend
 
 * **GKN Aerospace Sweden AB:** To the entire team for providing access to the PTC facilities and fostering a welcoming environment. A special thanks to my industrial supervisor, **Erik Sanderson-Gull**, for giving me the opportunity to undertake this project and for his invaluable guidance.
 * **University West:** To my academic supervisor, **Yongcui Mi**, for her expert assistance with the academic aspects of this research, and to the program coordinator, **Morgan Nilsen**, for his continuous support throughout the academic year.
-* **The Open-Source Community:** Special thanks to the researchers behind [AnoViT: Unsupervised Anomaly Detection and Localization with Vision Transformer-based Encoder-Decoder](https://arxiv.org/pdf/2203.10808). Their provided open-source code served as a tremendous help and a valuable foundation for this work.
+* **The Open-Source Community:** Special thanks to the researchers behind [AnoViT](https://arxiv.org/pdf/2203.10808) as their open-source code served as a tremendous help and a valuable foundation for this work, as well as to **Google** for releasing the pre-trained [ViT-Base/16 weights](https://huggingface.co/google/vit-base-patch16-384), and **Hugging Face** for hosting these models and providing the essential libraries.
 
 <div align="center">
   <a href="https://www.gknaerospace.com/">
@@ -253,6 +253,9 @@ This project was conducted as part of my Master's thesis. I would like to extend
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://www.hv.se/en/">
     <img src="https://github.com/user-attachments/assets/c5395123-7ce8-4f19-9d54-f0a9d75e31e8" alt="University West" width="200" ></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://huggingface.co/">
+    <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="HuggingFace" width="100"/></a>
 </div>
 
 <br>
