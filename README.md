@@ -43,7 +43,7 @@ In the reconstruction path, the **Extracted Features** are routed to a Convoluti
 * **Error Within Bound:** If the reconstruction error is within the predefined boundaries, the decision is delegated to the classification path (indicated by the dashed line).
 
 ### 3️⃣ The Classification Head
-If the image triggers the second stage, the **CLS logits output** from the encoder is processed through a **Softmax Activation** function. This classification head leverages the ViT's learned representations to catch more subtle abnormalities that passed the reconstruction test, outputting the final **Class** as either **Normal** or **Abnormal**.
+If the image triggers the second stage, the **CLS logits output** from the encoder is processed through a **Softmax Activation** function. This classification head leverages the ViT's learned representations to catch more subtle abnormalities that passed the reconstruction test, outputting the final class as either **Normal** or **Abnormal**.
 
 **Summary:** The model catches distinct structural anomalies using the reconstruction error first, while relying on the classifier to capture more nuanced defects.
 
@@ -112,7 +112,7 @@ where $x^{(i)}$ is the original image and $\hat{x}^{(i)}$ is the decoder's recon
 
 ### 2️⃣ Decision Boundary Estimation (Bound Phase)
 
-Using the Bound subset (never seen during training), the system computes the score distributions for both classes and identifies three decision zones:
+Using the Bound subset (which is never seen during training), the score distributions are computed for both classes, and three decision zones are identified:
 
 ```
 Score Axis ──────────────────────────────────────────────────────────►
@@ -130,16 +130,16 @@ At test time, each sample's anomaly score determines which decision-maker is use
 ```
 For each test image:
     1. Compute reconstruction score S
-    2. Get CLS token class probabilities via Softmax
-    3. Route to decision logic:
-
+    2. Route to decision logic:
     if perfect_separation:
-        → Use standalone reconstructor threshold only
+        → Definite zone: Reconstructor decides (using standalone threshold)
     else:
-        if S < overlap_start  OR  S > overlap_end:
+        if S < overlap_start OR S > overlap_end:
             → Definite zone: Reconstructor decides (based on threshold rules)
         else:
-            → Overlap zone: Classifier decides (argmax of CLS softmax)
+            → Overlap zone (Ambiguous): 
+              3. Get CLS token class probabilities via Softmax
+              4. Classifier decides (argmax of CLS softmax)
 ```
 
 <br>
@@ -148,7 +148,7 @@ For each test image:
 
 ### Dataset Configuration
 
-To ensure compatibility with the custom data loaders and the hybrid training strategy, your dataset must be organized into the following directory structure, where each folder serves a specific role in teaching the Vision Transformer and Decoder:
+To ensure compatibility with the custom data loaders and the hybrid training strategy, the dataset must be organized into the following directory structure, where each folder serves a specific role in training the Vision Transformer and Decoder:
 
 | Folder | Label | Category | Training Type | Model Objective |
 |--------|-------|----------|---------------|-----------------|
@@ -187,8 +187,8 @@ The training and evaluation sets are split internally to optimize and properly e
 ### Installation
 
 ```bash
-git clone https://github.com/Dalageo/vit-dec-anomaly-detection
-cd vit-dec-anomaly-detection
+git clone https://github.com/Dalageo/vitdec-anomaly-detection
+cd vitdec-anomaly-detection
 pip install poetry
 poetry install
 ```
@@ -225,8 +225,6 @@ python -m app.test
 │   │   ├── visualizer.py         # Plotting: reconstructions, loss curves, confusion matrices
 │   │   └── log_utils.py          # Logger configuration & metric tracking
 │   └── checkpoints/              # Saved model weights & training logs
-├── dataset/                      # Melt pool image data (train/test splits)
-├── model_weights/                # Pre-trained ViT weights (.npz)
 ├── scripts/
 │   └── deploy_prd.sh             # Production deployment script
 ├── pyproject.toml                # Poetry dependency configuration
